@@ -1,0 +1,5 @@
+/venv/
+/notebooks/.ipynb_checkpoints/
+/.idea/
+/_ignored_files/
+/notebooks/.pytest_cache/
