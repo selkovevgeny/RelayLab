@@ -1,4 +1,1 @@
-include relaylab / records
-/*.cfg
-/*.dat
-recursive-include relaylab/records/*
+recursive-include relaylab/records *
