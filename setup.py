@@ -6,6 +6,6 @@ setup(
    description='Библиотека предназначенная для простой работы с аварийными осциллограммами в формате COMTRADE в jupiter notebook',
    author='selkovevgeny',
    author_email='selkov.evgeny@yandex.ru',
-   packages=['relaylab'],  #same as name
+   packages=['relaylab', 'relaylab.records'],  #same as name
    install_requires=['plotly', 'numpy', 'pandas'], #external packages as dependencies
 )
