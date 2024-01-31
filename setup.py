@@ -7,7 +7,6 @@ setup(
    author='selkovevgeny',
    author_email='selkov.evgeny@yandex.ru',
    packages=['relaylab'],  #same as name
-   package_dir={"": "relaylab"},
    include_package_data=True,
    install_requires=['plotly', 'numpy', 'pandas'], #external packages as dependencies
 )
