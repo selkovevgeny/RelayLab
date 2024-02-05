@@ -101,14 +101,13 @@ class _StrVar:
 
 class Equipment:
     def __str__(self):
+        """Вывод описания экземлпяра класса при использовании функции
+        print(equipment instance)"""
         res = ''
         for param in self.__dict__:
             if param[0] != '_':
                 res = res + str(param) + ': ' + str(self.__getattribute__(param)) + '\n'
         return res
-
-    def __repr__(self):
-        return str(self.__class__)
 
 
 class Transformer(Equipment):
@@ -119,7 +118,10 @@ class Transformer(Equipment):
     Usc - напряжение короткого замыкания, о.е.;
     Inl - ток холостого хода, о.е.;
     Psc - активные потери в опыте короткого замыкания, кВт;
-    Pхх - активные потери в опыте холостого хода, кВт.
+    Pnl - активные потери в опыте холостого хода, кВт;
+    scheme_high - схема соединения обмотки ВН;
+    scheme_low - схема соединения обмотки НН;
+    group - группа соединения трансформатора;
 
     Расчетные величины:
     Ihigh - номинальный ток стороны ВН, А;

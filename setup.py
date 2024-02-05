@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
    name='relaylab',
-   version='0.1.0',
+   version='0.1.1',
    description='Библиотека предназначенная для простой работы с аварийными осциллограммами в формате COMTRADE в jupiter notebook',
    author='selkovevgeny',
    author_email='selkov.evgeny@yandex.ru',

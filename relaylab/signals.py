@@ -88,17 +88,22 @@ class _Signal:
 
     def change_name(self, name):
         """Изменение имени сигнала"""
-        self.name = name
+        self.name = str(name)
         return self
 
     @property
     def plt_data(self):
+        """Данные для построения графиков в plotly.
+
+        return: dict(name=self.name, x=self.time, y=self.val)"""
         return dict(name=self.name, x=self.time, y=self.val)
 
     def __len__(self):
+        """Возвращает количество элементов в массиве ndarray"""
         return len(self.val)
 
     def __str__(self):
+        """Описание экземпляра класса"""
         return f'{self.name}: Fs= {self.Fs}\n{self.val[0:min(10, len(self.val))]}...'
 
     def __repr__(self):
@@ -111,6 +116,11 @@ class DiscreteSignal(_Signal):
     _self_types = (np.bool_, )
 
     def __and__(self, other):
+        """Логическое И
+
+        Пример:
+        res = discrete_signal1 & discrete_signal2
+        """
         if type(other) == self.__class__:
             signal = self.__class__(name=self.name + f'and {other.name}', Fs=self.Fs)
             signal.val = self.val & other.val
@@ -119,6 +129,11 @@ class DiscreteSignal(_Signal):
         return signal
 
     def __or__(self, other):
+        """Логическое ИЛИ
+
+        Пример:
+        res = discrete_signal1 | discrete_signal2
+        """
         if type(other) == self.__class__:
             signal = self.__class__(name=self.name + f'or {other.name}', Fs=self.Fs)
             signal.val = self.val | other.val
@@ -127,6 +142,11 @@ class DiscreteSignal(_Signal):
         return signal
 
     def __invert__(self):
+        """Логическая инверсия сигнала
+
+        Пример:
+        res = ~ discrete_signal1
+        """
         signal = self.__class__(name=f'not {self.name}', Fs=self.Fs)
         signal.val = ~ self.val
         return signal
@@ -136,12 +156,23 @@ class _CommonSignal(_Signal):
     _self_types = (np.float_, np.double, np.single, np.intc, np.int_)
 
     def __neg__(self):
+        """Инверсия сигнала
+
+        Пример:
+        res = - signal
+        """
         deep_copy = _copy.deepcopy(self)
         deep_copy.val = - self.val
         deep_copy.name = f'-{self.name}'
         return deep_copy
 
     def __sub__(self, other):
+        """Вычитание сигналов
+
+        Примеры:
+        res = signal1 - signal2
+        res2 = signal1 - 0.5
+        """
         if type(other) in self._data_types:
             signal = self.__class__(name=self.name+f'-{other:2f}', Fs=self.Fs)
             signal.val = self.val - other
@@ -152,7 +183,26 @@ class _CommonSignal(_Signal):
             raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
         return signal
 
+    def __rsub__(self, other):
+        """Вычитание сигналов
+
+        Примеры:
+        res2 = 0.5 - signal1
+        """
+        if type(other) in self._data_types:
+            signal = self.__class__(name=f'{other:2f}-' + self.name, Fs=self.Fs)
+            signal.val = other - self.val
+        else:
+            raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
+        return signal
+
     def __add__(self, other):
+        """Сложение сигналов
+
+        Примеры:
+        res = signal1 + signal2
+        res2 = signal1 + 0.5
+        """
         if type(other) in self._data_types:
             signal = self.__class__(name=self.name+f'+{other:2f}', Fs=self.Fs)
             signal.val = self.val + other
@@ -163,7 +213,26 @@ class _CommonSignal(_Signal):
             raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
         return signal
 
+    def __radd__(self, other):
+        """Сложение сигналов
+
+        Примеры:
+        res2 = 0.5 + signal1
+        """
+        if type(other) in self._data_types:
+            signal = self.__class__(name=f'{other:2f}+' + self.name, Fs=self.Fs)
+            signal.val = self.val + other
+        else:
+            raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
+        return signal
+
     def __mul__(self, other):
+        """Умножение сигналов
+
+        Примеры:
+        res = signal1 * signal2
+        res2 = signal1 * 0.5
+        """
         if type(other) in self._data_types:
             signal = self.__class__(name=self.name+f'*{other:2f}', Fs=self.Fs)
             signal.val = self.val * other
@@ -174,7 +243,26 @@ class _CommonSignal(_Signal):
             raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
         return signal
 
+    def __rmul__(self, other):
+        """Умножение сигналов
+
+        Примеры:
+        res2 = 0.5 * signal1
+        """
+        if type(other) in self._data_types:
+            signal = self.__class__(name=f'{other:2f}*' + self.name, Fs=self.Fs)
+            signal.val = self.val * other
+        else:
+            raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
+        return signal
+
     def __truediv__(self, other):
+        """Деление сигналов
+
+        Примеры:
+        res = signal1 / signal2
+        res2 = signal1 / 2
+        """
         if type(other) in self._data_types:
             signal = self.__class__(name=self.name+f'/{other:2f}', Fs=self.Fs)
             signal.val = self.val / other
@@ -182,6 +270,19 @@ class _CommonSignal(_Signal):
             signal = self.__class__(name=self.name + f'/{other.name}', Fs=self.Fs)
             with np.errstate(divide='ignore', invalid='ignore'):
                 signal.val = self.val / other.val
+        else:
+            raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
+        return signal
+
+    def __rtruediv__(self, other):
+        """Деление сигналов
+
+        Примеры:
+        res2 = 5 / signal1
+        """
+        if type(other) in self._data_types:
+            signal = self.__class__(name=f'{other:2f}/' + self.name, Fs=self.Fs)
+            signal.val = other / self.val
         else:
             raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
         return signal
@@ -218,12 +319,22 @@ class AnalogSignal(_CommonSignal):
         return relay.start(self)
 
     def __gt__(self, other):
+        """Сравнение с уставкой
+
+        Пример:
+        res = signal1 > 5.0
+        """
         if type(other) in self._data_types:
             return self.max_relay(other)
         else:
             raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
 
     def __lt__(self, other):
+        """Сравнение с уставкой
+
+        Пример:
+        res = signal1 < 80.0
+        """
         if type(other) in self._data_types:
             return self.min_relay(other)
         else:
@@ -243,12 +354,20 @@ class ComplexSignal(_CommonSignal):
         return res
 
     def __abs__(self):
+        """Возвращает модуль комплексных значений"""
         return self.abs()
 
     def angle(self):
         """Возвращает угол в радианах"""
         res = AnalogSignal(name=f'ang({self.name })', Fs=self.Fs)
         res.val = np.angle(self.val)
+        return res
+
+    def diff(self):
+        """Возвращает приращение сигнала за период промышленной частоты"""
+        res = AnalogSignal(name=f'Δ({self.name})', Fs=self.Fs)
+        N = int(self.Fs / const.fbase)
+        res.val = np.concatenate([np.zeros(2*N), np.abs(self.val[2*N:] - self.val[N:-N])])
         return res
 
     def angle_deg(self):

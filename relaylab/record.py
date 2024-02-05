@@ -6,6 +6,7 @@ relaylab.record
 В состав модуля подключены примеры осциллограмм: relaylab.record.examples
 """
 import numpy as np
+import pandas as _pd
 from string import ascii_letters as _ascii_letters, digits as _digits
 from relaylab.comtrade import Comtrade as _Comtrade
 from relaylab.signals import AnalogSignal as _AnalogSignal, DiscreteSignal as _DiscreteSignal, ComplexSignal as _ComplexSignal
@@ -244,6 +245,25 @@ class Record:
             if type(ch) == _DiscreteSignal:
                 dchs.append(ch)
         return tuple(dchs)
+
+    def describe_analogs(self):
+        """Вывод информации по аналоговым каналам осциллограммы"""
+        achs = self.__get_analog_channels()
+        df_achs = _pd.DataFrame()
+        for ach in achs:
+            df_achs[ach.name] = ach.dft_abs().val[int(self.Fs / 50):]
+        df_achs_agg = df_achs.aggregate(func=(min, max)).transpose()
+        return df_achs_agg.style.format('{:.3f}')
+
+    def describe_discretes(self):
+        """Вывод информации по дискретным каналам осциллограммы"""
+        dchs = self.__get_discrete_channels()
+        df_dchs = _pd.DataFrame()
+        for dch in dchs:
+            df_dchs[dch.name] = dch.val
+        df_dchs_agg = df_dchs.aggregate(func=(min, max)).transpose()
+        df_dchs_agg['change'] = (df_dchs_agg['max'] != df_dchs_agg['min'])
+        return df_dchs_agg.style.highlight_max(color='#FFB02E', subset='change', axis=0)
 
     def __str__(self):
         """Описание осциллограммы"""
