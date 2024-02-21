@@ -51,6 +51,11 @@ color = {'grey': '#888b8c', 'yellow': '#FFB02E', 'green': '#50C878', 'red': '#FD
 color = _Color(color) #Доступ к цветам через точку, например: color.blue
 
 
+def _resample_discrete(channel):
+    """Учет того, что обработка сигнала проиходит один раз за программный цикл"""
+    return channel[::const.cycle].repeat(const.cycle)
+
+
 class _Signal:
     """Родительский класс для всех сигналов"""
     _self_types = (np.float_, np.double, np.single, np.intc, np.int_)
@@ -150,6 +155,7 @@ class DiscreteSignal(_Signal):
         signal = self.__class__(name=f'not {self.name}', Fs=self.Fs)
         signal.val = ~ self.val
         return signal
+
 
 class _CommonSignal(_Signal):
     _data_types = (float, int, np.float_, np.single, np.double, np.intc, np.int_)
