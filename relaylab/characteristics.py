@@ -155,9 +155,166 @@ class MinRelay(_Relay):
         return start
 
 
+class DistanceRelay(_Relay):
+    """Четырехугольная характеристика срабатывания дистанционной защиты с вырезом нагрузки"""
+
+    def __init__(self, z_line=10, fi_line=70, r_right=5, fi_right=70, offset=0.1, r_load=None, fi_load=30):
+        """ Задание характеристики срабатывания
+
+        :param z_line: Полное сопротивление срабатывания, type:float
+        :param fi_line: Угол линии, type:float
+        :param r_right: Уставка по активному сопротивлению, type:float
+        :param fi_right: Угол наклона правой стороны характеристики срабатывания, type:float
+        :param offset: Коэффициент смещения за спину характеристики срабатывания, type:float
+        :param r_load: Угол нагрузки, гр, type:float
+        :param fi_load: Уставка по активному сопротивлению зоны нагрузки, type:float
+        """
+        super().__init__()
+        self.z_line = z_line
+        self.fi_line = fi_line
+        self.r_right = r_right
+        self.fi_right = fi_right
+        self.offset = offset
+        self.r_load = r_load
+        self.fi_load = fi_load
+
+    @staticmethod
+    def __solve_eq(eq1, eq2):
+        """Вычисление точек пересечения двух линий (x, y), eq = (k, b), y=k*x+b"""
+        a = np.array([[eq1[0], -1], [eq2[0], -1]])
+        b = np.array([-eq1[1], -eq2[1]])
+        return np.linalg.solve(a, b)
+
+    def get_points(self):
+        """Возвращает координаты точек характеристики срабатывания на плоскости: R, X"""
+        fi_line = np.deg2rad(self.fi_line)
+        fi_right = np.deg2rad(self.fi_right)
+        fi_load = np.deg2rad(self.fi_load)
+        # Уравнения линий
+        up = 0,  self.z_line * np.sin(fi_line) #верхняя сторона
+        right = np.tan(fi_right), -self.r_right * np.tan(fi_right) #правая сторона
+        down = 0,  - self.offset * self.z_line * np.sin(fi_line) #нижняя сторона
+        left = np.tan(fi_line), self.r_right * np.tan(fi_line) #левая сторона
+        # Вычисляем точки пересечения
+        t1 = self.__solve_eq(up, right)
+        t2 = self.__solve_eq(down, right)
+        t3 = self.__solve_eq(down, left)
+        t4 = self.__solve_eq(up, left)
+        if self.r_load is None:
+            points = np.array([t1, t2, t3, t4, t1])
+        else:
+            points_lst = []
+            # Уравнения линий нагрузки
+            load_pos = np.tan(fi_load), 0  # нагрузка положительный наклон
+            load_neg = np.tan(-fi_load), 0  # нагрузка отрицательный наклон
+            r_pos = 100000, -100000 * self.r_load  # нагрузка справа
+            r_neg = 100000, 100000 * self.r_load  # нагрузка слева
+            t1a = self.__solve_eq(up, r_pos)
+            t1b = self.__solve_eq(up, load_pos)
+            t1c = self.__solve_eq(right, load_pos)
+            t1d = self.__solve_eq(r_pos, load_pos)
+            t1e = self.__solve_eq(right, r_pos)
+            t2a = self.__solve_eq(down, r_pos)
+            t2b = self.__solve_eq(down, load_neg)
+            t2c = self.__solve_eq(right, load_neg)
+            t2d = self.__solve_eq(r_pos, load_neg)
+            t2e = self.__solve_eq(right, r_pos)
+            t3a = self.__solve_eq(down, r_neg)
+            t3b = self.__solve_eq(down, load_pos)
+            t3c = self.__solve_eq(left, load_pos)
+            t3d = self.__solve_eq(r_neg, load_pos)
+            t3e = self.__solve_eq(left, r_neg)
+            t4a = self.__solve_eq(up, r_neg)
+            t4b = self.__solve_eq(up, load_neg)
+            t4c = self.__solve_eq(left, load_neg)
+            t4d = self.__solve_eq(r_neg, load_neg)
+            t4e = self.__solve_eq(left, r_neg)
+            # Обработка 1 четверти
+            if t1a[1] < t1d[1]:
+                # область нагрузки больше характеристики сверху и снизу
+                points_lst.append(t1a)
+            else:
+                if t1e[1] > t1c[1]:
+                    # область нагрузки не пересекается с характеристикой
+                    points_lst.append(t1)
+                else:
+                    if t1b[0] < t1[0]:
+                        # область нагрузки съела сторону 2
+                        points_lst.append(t1b)
+                        if t1d[1] < t1[1]:
+                            points_lst.append(t1d)
+                    else:
+                        points_lst.append(t1)
+                        if t1c[1] < t1[1]:
+                            points_lst.append(t1c)
+                            points_lst.append(t1d)
+                    if (t2c[0] < t1e[0] < t1c[0]) and t1e[1] > t2[1]:
+                        points_lst.append(t1e)
+            # Обработка 2 четверти
+            if t2a[1] > t2d[1]:
+                if t2a[0] < t2[0]:
+                    points_lst.append(t2a)
+                else:
+                    points_lst.append(t2)
+            else:
+                if t2e[1] > t2c[1]:
+                    # область нагрузки не пересекается с характеристикой
+                    points_lst.append(t2)
+                else:
+                    if t2b[0] < t2[0]:
+                        if t2d[1] > t2[1]:
+                            points_lst.append(t2d)
+                        points_lst.append(t2b)
+                    else:
+                        if t2c[1] > t2[1]:
+                            points_lst.append(t2d)
+                            points_lst.append(t2c)
+                        points_lst.append(t2)
+            # Обработка 3 четверти
+            if t3a[1] > t3d[1]:
+                # область нагрузки больше характеристики сверху и снизу
+                points_lst.append(t3a)
+            else:
+                if t3e[1] < t3c[1]:
+                    # область нагрузки не пересекается с характеристикой
+                    points_lst.append(t3)
+                else:
+                    if t3b[0] > t3[0]:
+                        # область нагрузки съела сторону 2
+                        points_lst.append(t3b)
+                        if t3d[1] > t3[1]:
+                            points_lst.append(t3d)
+                    else:
+                        points_lst.append(t3)
+                        if t3c[1] > t3[1]:
+                            points_lst.append(t3c)
+                            points_lst.append(t3d)
+                    if (t4c[0] > t3e[0] > t3c[0]) and t3e[1] < t4[1]:
+                        points_lst.append(t3e)
+            # Обработка 4 четверти
+            if t4a[1] < t4d[1]:
+                if t4a[0] > t4[0]:
+                    points_lst.append(t4a)
+                else:
+                    points_lst.append(t4)
+            else:
+                if t4e[1] < t4c[1]:
+                    # область нагрузки не пересекается с характеристикой
+                    points_lst.append(t4)
+                else:
+                    if t4b[0] > t4[0]:
+                        if t4d[1] < t4[1]:
+                            points_lst.append(t4d)
+                        points_lst.append(t4b)
+                    else:
+                        if t4c[1] < t4[1]:
+                            points_lst.append(t4d)
+                            points_lst.append(t4c)
+                        points_lst.append(t4)
+            points_lst.append(points_lst[0])
+            points = np.array(points_lst)
+        return points[:, 0], points[:, 1]
+
 if __name__ == '__main__':
-    relay = DifRelay(st0=0.2, slope_st1=0.5, slope1=0.2, slope_st2=1.5, slope2=0.5)
-    Idif = _AnalogSignal(val=np.array([0.199, 0.201, 0.199, 0.201, 0.299, 0.301, 0.399, 0.401, 0.899, 0.901]))
-    Ibias = _AnalogSignal(val=np.array([0, 0, 0.5, 0.5, 1, 1, 1.5, 1.5, 2.5, 2.5]))
-    res = all(relay.start(Idif, Ibias, dif_dft=False).val | ~ np.array([False, True, False, True, False, True, False, True, False, True]))
-    print(res)
+    relay = DistanceRelay()
+    print(relay.get_points())
