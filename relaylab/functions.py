@@ -71,11 +71,55 @@ def dif_single_phase(I1: _AnalogSignal, I2: _AnalogSignal, Inom1=1, Inom2=1, CT1
         val1, val2 = I1 * CT1.n.val / Inom1, I2 * CT2.n.val / Inom2
     else:
         val1, val2 = I1 / Inom1, I2 / Inom1
-    Idif = _AnalogSignal(name='Iдиф', Fs=I1.Fs)
-    Idif.val = (val1 + val2).val
-    Ibias = _AnalogSignal(name='Iторм', Fs=I1.Fs)
-    Ibias.val = (np.abs(_DFT(val1).val) + np.abs(_DFT(val2).val)) / 2
+    if I1.__class__ == _AnalogSignal and I2.__class__ == _AnalogSignal:
+        Idif = _AnalogSignal(name='Iдиф', Fs=I1.Fs)
+        Idif.val = (val1 + val2).val
+        Ibias = _AnalogSignal(name='Iторм', Fs=I1.Fs)
+        Ibias.val = (np.abs(_DFT(val1).val) + np.abs(_DFT(val2).val)) / 2
+    elif I1.__class__ == _ComplexSignal and I2.__class__ == _ComplexSignal:
+        Idif = _ComplexSignal(name='Iдиф', Fs=I1.Fs)
+        Idif.val = (val1 + val2).val
+        Ibias = _AnalogSignal(name='Iторм', Fs=I1.Fs)
+        Ibias.val = (np.abs(val1) + np.abs(val2)).val / 2
+    else:
+        raise ValueError('Неверный тип входных данных. Сигналы должны быть типа: AnalogSignal или ComplexSignal')
     return Idif, Ibias
+
+
+def dif_three_phase(IA1: _AnalogSignal, IB1: _AnalogSignal, IC1: _AnalogSignal,
+              IA2: _AnalogSignal, IB2: _AnalogSignal, IC2: _AnalogSignal,
+              Inom1=1, Inom2=1, CT_high=None, CT_low=None):
+    """Расчет дифференциального тока и тока торможения для двигателя.
+    При расчете осуществляется приведение сторон:
+    I1_norm = I1 * CT.n / Inom_motor
+    Диф. ток равен:
+        Idif = val1 + val2
+    Ток торможения равен:
+        Ibias = 0.5(abs(val1.dft()) + abs(val2.dft()))
+
+    :param IA1: аналоговый сигнал тока стороны 1, type: AnalogSignal
+    :param IB1: аналоговый сигнал тока стороны 1, type: AnalogSignal
+    :param IC1: аналоговый сигнал тока стороны 1, type: AnalogSignal
+    :param IA2: аналоговый сигнал тока стороны 2, type: AnalogSignal
+    :param IB2: аналоговый сигнал тока стороны 2, type: AnalogSignal
+    :param IC2: аналоговый сигнал тока стороны 2, type: AnalogSignal
+    :param motor: двигатель, type: Motor
+    :param CT_high: трансформатор тока стороны 1, type: CT
+    :param CT_low: трансформатор тока стороны 2, type: CT
+    :return: list(IdifA, IdifB, IdifC, IbiasA, IbiasB, IbiasC),
+                                    где Idif - мгновенные значения диф. тока, type: AnalogSignal
+                                        Ibias - ток торможения, type: AnalogSignal
+    """
+    IdifA, IbiasA = dif_single_phase(IA1, IA2, Inom1=Inom1, Inom2=Inom2,
+                                     CT1=CT_high, CT2=CT_low)
+    IdifB, IbiasB = dif_single_phase(IB1, IB2, Inom1=Inom1, Inom2=Inom2,
+                                     CT1=CT_high, CT2=CT_low)
+    IdifC, IbiasC = dif_single_phase(IC1, IC2, Inom1=Inom1, Inom2=Inom2,
+                                     CT1=CT_high, CT2=CT_low)
+    IdifA.name, IbiasA.name = 'IдифA', 'IтормA'
+    IdifB.name, IbiasB.name = 'IдифB', 'IтормB'
+    IdifC.name, IbiasC.name = 'IдифC', 'IтормC'
+    return IdifA, IdifB, IdifC, IbiasA, IbiasB, IbiasC
 
 
 def dif_two_winding_transformer(IA1: _AnalogSignal, IB1: _AnalogSignal, IC1: _AnalogSignal,

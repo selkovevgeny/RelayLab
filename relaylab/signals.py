@@ -14,7 +14,7 @@ relaylab.signals
 import copy as _copy
 import numpy as np
 import relaylab as _relaylab
-
+from scipy.signal import lfilter as _lfilter
 
 class _Const:
     def __init__(self):
@@ -155,6 +155,27 @@ class DiscreteSignal(_Signal):
         signal = self.__class__(name=f'not {self.name}', Fs=self.Fs)
         signal.val = ~ self.val
         return signal
+
+    def delay(self, t, delay_type='front'):
+        """Задержка срабатывания логичесого сигнала на время t, c.
+        По умолчанию задержка на срабатывание, если type==back - задержка на возврат"""
+        if delay_type == 'front':
+            return delay(self, t=t)
+        elif delay_type == 'back':
+            return delay_to_return(self, t=t)
+        else:
+            raise ValueError(f'Не верное значение параметра "delay_type". Возможные значения: "front" и "back"')
+
+    def impulse(self, t, impulse_type='front'):
+        """Формирователь импульса длительностью  t, c.
+
+        :param t: длительность импульса, с
+        :param impulse_type: тип формирователя: front - формирователь по переднему фронту,
+                                                back - формирователь по заднему фронту
+                                                both - формирователь по переднему и по заднему фронту
+        :return: импульс длительностью t, type: DiscreteSignal
+        """
+        return impulse_former(self, t, impulse_type=impulse_type)
 
 
 class _CommonSignal(_Signal):
@@ -345,6 +366,17 @@ class AnalogSignal(_CommonSignal):
             return self.min_relay(other)
         else:
             raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
+
+    def dfilter(self, b, a=1):
+        """Фильтрация сигнала. Передаточная характеристика задается коэффициентами b и a:
+        H(z) = (b[0] + b[1]*z^-1 +..+ b[n]*z^-n) / (1 + a[1]*z^-1 +..+ a[n]*z^-n)
+
+        :param b: коэфициенты цифрового фильтра, type: numpy ndarray
+        :param a: коэфициенты цифрового фильтра, type: numpy ndarray
+        :return: сигнал класса ComplexSignal, если b - комплекные значения,
+                               AnalogSignal, если b - вещественные значения
+        """
+        return dfilter(self, b=b, a=a)
 
 
 class ComplexSignal(_CommonSignal):
@@ -591,6 +623,84 @@ def noise_snr(*signals, snr=20):
         res_array.append(res)
     return res_array[0] if len(res_array) == 1 else res_array
 
+
+def dfilter(*signals, b, a=1):
+    """Фильтрация сигнала. Передаточная характеристика задается коэффициентами b и a:
+    H(z) = (b[0] + b[1]*z^-1 +..+ b[n]*z^-n) / (1 + a[1]*z^-1 +..+ a[n]*z^-n)
+
+    :param signals: аналоговые сигналы класса AnalogSignal
+    :param b: коэфициенты цифрового фильтра, type: numpy ndarray
+    :param a: коэфициенты цифрового фильтра, type: numpy ndarray
+    :return: список комплексных сигналов класса ComplexSignal, если b - комплекные значения,
+                                                AnalogSignal, если b - вещественные значения
+    """
+    res_array = []
+    N = len(b)
+    for signal in signals:
+        signal_filtered = _lfilter(b, a, signal.val)
+        signal_filtered = signal_filtered[0:-N + 1]
+        signal_filtered[0:N] = 0
+        if (b.dtype in ComplexSignal._self_types) or signal.__class__ == ComplexSignal:
+            res = ComplexSignal(name=f'Фильтр({signal.name})', Fs=signal.Fs)
+        else:
+            res = AnalogSignal(name=f'Фильтр({signal.name})', Fs=signal.Fs)
+        res.val = signal_filtered
+        res_array.append(res)
+    return res_array[0] if len(res_array) == 1 else res_array
+
+
+def delay(signal: DiscreteSignal, t, trip_if_start_true=False):
+    """ Задержка на срабатывание логического сигнала
+
+    :param signal: логический сигнал, type: DiscreteSignal
+    :param t: время задержки, с
+    :param trip_if_start_true: флаг, определяющий что делать, если в начале процесса вход лог. сигнал в положении True.
+                  False - срабатывание за заданной выдержкой t, True - сразу сработать
+    :return: задержанный логический сигнал, type: DiscreteSignal
+    """
+    Fs = signal.Fs
+    dn = np.int(np.ceil(t * Fs))
+    val = signal.val
+    delayed_val = val.copy()
+    with np.nditer(delayed_val, op_flags=['readwrite']) as it:
+        for num, x in enumerate(it):
+            x[...] = True if (num >= dn or trip_if_start_true) and np.all(val[num - dn:num + 1]) else False
+    res = DiscreteSignal(name=f'{signal.name} + tср={t:.3f},c', val=delayed_val, Fs=signal.Fs)
+    return res
+
+
+def delay_to_return(signal: DiscreteSignal, t):
+    """ Задержка на возврат логического сигнала
+
+    :param signal: логический сигнал, type: DiscreteSignal
+    :param t: время на возврат, с
+    :return: задержанный логический сигнал, type: DiscreteSignal
+    """
+    res = (~delay(~signal, t=t, trip_if_start_true=True)).change_name(f'{signal.name} + tв={t:.3f},c')
+    return res
+
+
+def impulse_former(signal: DiscreteSignal, t, impulse_type='front'):
+    """Формирователь импульса длительностью  t, c. 
+    
+    :param signal: логический сигнал, type: DiscreteSignal
+    :param t: длительность импульса, с
+    :param type: тип формирователя: front - формирователь по переднему фронту, back - формирователь по заднему фронту
+                                    both - формирователь по переднему и по заднему фронту
+    :return: импульс длительностью t, type: DiscreteSignal
+    """
+    val = np.array(signal.val, dtype=np.int_)
+    dif = np.diff(val, prepend=val[0])
+    if impulse_type == 'front':
+        imp = np.where(dif>0, True, False)
+    elif impulse_type == 'back':
+        imp = np.where(dif<0, True, False)
+    elif impulse_type == 'both':
+        imp = np.array(dif, dtype=np.bool_)
+    else:
+        raise ValueError(f'Не верное значение параметра "impulse_type". Возможные значения: "front", "back" и "both"')
+    imp_ds = DiscreteSignal(name='Импульс', val=imp, Fs=signal.Fs)
+    return delay_to_return(imp_ds, t).change_name(f'{signal.name} {impulse_type} {t:.3f},c')
 
 
 if __name__ == '__main__':

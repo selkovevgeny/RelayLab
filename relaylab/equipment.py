@@ -232,7 +232,7 @@ class CT(Equipment):
     rload - фактическое активное сопротивление вторичной нагрузки;
     xload - фактическое реактивное сопротивление вторичной нагрузки.
     """
-    def __init__(self, I1nom, I2nom, Knom, Snom=50, cos_nom=0.8,  r2=10., x2=0., Sload=6.3, cos_load=1.0):
+    def __init__(self, I1nom, I2nom, Knom=20, Snom=50, cos_nom=0.8,  r2=10., x2=0., Sload=6.3, cos_load=1.0):
         self.I1nom = _Var(val=I1nom, name='I1ном', desc='номинальный первичный ток', unit='А', n_digits=0)
         self.I2nom = _Var(val=I2nom, name='I2ном', desc='номинальный вторичный ток', unit='А', n_digits=0)
         self.Knom = _Var(val=Knom, name='Кном', desc='номинальная допустимая предельная кратность', unit='', n_digits=0)
