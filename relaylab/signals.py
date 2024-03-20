@@ -107,6 +107,14 @@ class _Signal:
         """Возвращает количество элементов в массиве ndarray"""
         return len(self.val)
 
+    def __getitem__(self, item):
+        """Возвращает срез сигнала S[start:stop], где start и stop - время в секундах."""
+        res = self.__class__(name=self.name, Fs=self.Fs)
+        start = max(0, int(self.Fs * item.start))
+        stop = min(len(self), int(self.Fs * item.stop))
+        res.val = self.val[start:stop]
+        return res
+
     def __str__(self):
         """Описание экземпляра класса"""
         return f'{self.name}: Fs= {self.Fs}\n{self.val[0:min(10, len(self.val))]}...'
@@ -295,8 +303,7 @@ class _CommonSignal(_Signal):
             signal.val = self.val / other
         elif type(other) == self.__class__:
             signal = self.__class__(name=self.name + f'/{other.name}', Fs=self.Fs)
-            with np.errstate(divide='ignore', invalid='ignore'):
-                signal.val = self.val / other.val
+            signal.val = np.where(abs(other.val)>0.05, self.val / (other.val + 1e-9), np.full(len(self.val), np.nan))
         else:
             raise ValueError(f'Не поддерживаемый тип данных: {type(other)}')
         return signal
@@ -391,6 +398,18 @@ class ComplexSignal(_CommonSignal):
         res.val = np.abs(self.val)
         return res
 
+    def real(self):
+        """Возвращает вещественную часть комплексных значений"""
+        res = AnalogSignal(name=f'real({self.name })', Fs=self.Fs)
+        res.val = np.real(self.val)
+        return res
+
+    def imag(self):
+        """Возвращает мнимую часть комплексных значений"""
+        res = AnalogSignal(name=f'imag({self.name })', Fs=self.Fs)
+        res.val = np.imag(self.val)
+        return res
+
     def __abs__(self):
         """Возвращает модуль комплексных значений"""
         return self.abs()
@@ -413,6 +432,13 @@ class ComplexSignal(_CommonSignal):
         res = AnalogSignal(name=f'ang({self.name })', Fs=self.Fs)
         res.val = np.rad2deg(np.angle(self.val))
         return res
+
+    @property
+    def plt_data(self):
+        """Данные для построения графиков в plotly.
+
+        return: dict(name=self.name, x=self.time, y=self.val)"""
+        return dict(name=self.name, x=self.time, y=np.abs(self.val))
 
 
 def impulses(vals, t, name='signal', Fs=2400):
@@ -701,6 +727,21 @@ def impulse_former(signal: DiscreteSignal, t, impulse_type='front'):
         raise ValueError(f'Не верное значение параметра "impulse_type". Возможные значения: "front", "back" и "both"')
     imp_ds = DiscreteSignal(name='Импульс', val=imp, Fs=signal.Fs)
     return delay_to_return(imp_ds, t).change_name(f'{signal.name} {impulse_type} {t:.3f},c')
+
+
+def discrete2analog(*signals):
+    """Преобразование дискретных сигналов в аналоговые.
+
+    :param signals: дискретные сигналы класса DiscreteSignal
+    :return: список аналоговых сигналов класса AnalogSignal
+    """
+
+    res_array = []
+    for signal in signals:
+        res = AnalogSignal(name=signal.name, Fs=signal.Fs)
+        res.val = np.array(signal.val, dtype=np.float_)
+        res_array.append(res)
+    return res_array[0] if len(res_array) == 1 else res_array
 
 
 if __name__ == '__main__':

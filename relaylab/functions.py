@@ -173,6 +173,40 @@ def dif_two_winding_transformer(IA1: _AnalogSignal, IB1: _AnalogSignal, IC1: _An
     return IdifA, IdifB, IdifC, IbiasA, IbiasB, IbiasC
 
 
+def impedance(*args, imin=0.05, vol='phase'):
+    """Расчет междуфазных сопротивлений.
+
+    :param args: IA, IB, IC, UAB, UBC, UCA (UA, UB, UC) type: ComplexSignal или AnalogSignal
+    :param vol: напряжения фазные (phase), линейные (line) type: str
+    :return: ZAB, ZBC , ZCA type: ComplexSignal
+    """
+    for arg in args:
+        _check_type(arg, (_AnalogSignal, _ComplexSignal))
+    _check_type_equality(args)
+    Fs = args[0].Fs
+    length = len(args[0].val)
+    args = _DFT(*args) if type(args[0] == _AnalogSignal) else args
+    if len(args) == 6:
+        if vol=='line':
+            ia, ib, ic, uab, ubc, uca = map(lambda s: s.val, args)
+        elif vol=='phase':
+            ia, ib, ic, ua, ub, uc = map(lambda s: s.val, args)
+            uab, ubc, uca = ua - ub, ub - uc, uc - ua
+    elif len(args) == 5:
+        ia, ib, ic, uab, ubc = map(lambda s: s.val, args)
+        uca = - uab - ubc
+    else:
+        raise ValueError('Неверное количество аргументов. Должно быть 5 или 6.')
+    iab, ibc, ica = ia - ib, ib - ic, ic - ia
+    zab = _ComplexSignal(name='Zab', Fs=Fs)
+    zab.val = np.where(abs(iab) > imin, uab / (iab + 1e-9), np.full(length, np.nan))
+    zbc = _ComplexSignal(name='Zbc', Fs=Fs)
+    zbc.val = np.where(abs(ibc) > imin, ubc / (ibc + 1e-9), np.full(length, np.nan))
+    zca = _ComplexSignal(name='Zca', Fs=Fs)
+    zca.val = np.where(abs(ica) > imin, uca / (ica + 1e-9), np.full(length, np.nan))
+    return zab, zbc, zca
+
+
 if __name__ == '__main__':
     from relaylab.signals import sin
 

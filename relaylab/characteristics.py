@@ -230,14 +230,18 @@ class DistanceRelay(_Relay):
             t4d = self.__solve_eq(r_neg, load_neg)
             t4e = self.__solve_eq(left, r_neg)
             # Обработка 1 четверти
-            if t1a[1] < t1d[1]:
+            if t1a[1] < t1d[1] and t1a[0] < t1[0]:
                 # область нагрузки больше характеристики сверху и снизу
                 points_lst.append(t1a)
+                #print(f'Вар.1: t1a[1] = {t1a[1]},  t1d[1] = {t1d[1]}')
             else:
+                #print(f'Вар.2: t1a[1] = {t1a[1]},  t1d[1] = {t1d[1]}')
                 if t1e[1] > t1c[1]:
                     # область нагрузки не пересекается с характеристикой
                     points_lst.append(t1)
+                    #print(f'Вар.1: t1e[1] = {t1e[1]},  t1c[1] = {t1c[1]}')
                 else:
+                    #print(f'Вар.2: t1e[1] = {t1e[1]},  t1c[1] = {t1c[1]}')
                     if t1b[0] < t1[0]:
                         # область нагрузки съела сторону 2
                         points_lst.append(t1b)
@@ -251,7 +255,7 @@ class DistanceRelay(_Relay):
                     if (t2c[0] < t1e[0] < t1c[0]) and t1e[1] > t2[1]:
                         points_lst.append(t1e)
             # Обработка 2 четверти
-            if t2a[1] > t2d[1]:
+            if t2a[1] > t2d[1] and t2a[0] < t2[0]:
                 if t2a[0] < t2[0]:
                     points_lst.append(t2a)
                 else:
@@ -271,7 +275,7 @@ class DistanceRelay(_Relay):
                             points_lst.append(t2c)
                         points_lst.append(t2)
             # Обработка 3 четверти
-            if t3a[1] > t3d[1]:
+            if t3a[1] > t3d[1] and t3a[0] > t3[0]:
                 # область нагрузки больше характеристики сверху и снизу
                 points_lst.append(t3a)
             else:
@@ -292,7 +296,7 @@ class DistanceRelay(_Relay):
                     if (t4c[0] > t3e[0] > t3c[0]) and t3e[1] < t4[1]:
                         points_lst.append(t3e)
             # Обработка 4 четверти
-            if t4a[1] < t4d[1]:
+            if t4a[1] < t4d[1] and t4a[0] > t4[0]:
                 if t4a[0] > t4[0]:
                     points_lst.append(t4a)
                 else:
