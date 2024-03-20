@@ -21,7 +21,7 @@ characteristics
     Характеристики срабатывания защит
 """
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 import relaylab.signals
 import relaylab.record
