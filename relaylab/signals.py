@@ -330,6 +330,10 @@ class AnalogSignal(_CommonSignal):
     val: массив значений ndarray
     Fs: частота дискретизации, Гц
     """
+    def rms(self):
+        """Расчет среднекадратичного значения сигнала."""
+        return RMS(self)
+
     def dft(self, harm=1):
         """Расчет комплексного значения сигнала, выбранной гармоники."""
         return DFT(self, harm=harm)
@@ -351,6 +355,13 @@ class AnalogSignal(_CommonSignal):
         """Пусковой орган максимального типа"""
         relay = _relaylab.characteristics.MinRelay(setting=setting, return_coef=return_coef)
         return relay.start(self)
+
+    def diff(self):
+        """Возвращает приращение сигнала за период промышленной частоты"""
+        res = AnalogSignal(name=f'Δ({self.name})', Fs=self.Fs)
+        N = int(self.Fs / const.fbase)
+        res.val = np.concatenate([np.zeros(2*N), self.val[2*N:] - self.val[N:-N]])
+        return res
 
     def __gt__(self, other):
         """Сравнение с уставкой
@@ -420,11 +431,14 @@ class ComplexSignal(_CommonSignal):
         res.val = np.angle(self.val)
         return res
 
-    def diff(self):
+    def diff(self, abs=False):
         """Возвращает приращение сигнала за период промышленной частоты"""
         res = AnalogSignal(name=f'Δ({self.name})', Fs=self.Fs)
         N = int(self.Fs / const.fbase)
-        res.val = np.concatenate([np.zeros(2*N), np.abs(self.val[2*N:] - self.val[N:-N])])
+        if abs:
+            res.val = np.concatenate([np.zeros(2 * N), np.abs(self.val[2 * N:]) - np.abs(self.val[N:-N])])
+        else:
+            res.val = np.concatenate([np.zeros(2*N), np.abs(self.val[2*N:] - self.val[N:-N])])
         return res
 
     def angle_deg(self):
@@ -664,7 +678,6 @@ def dfilter(*signals, b, a=1):
     N = len(b)
     for signal in signals:
         signal_filtered = _lfilter(b, a, signal.val)
-        signal_filtered = signal_filtered[0:-N + 1]
         signal_filtered[0:N] = 0
         if (b.dtype in ComplexSignal._self_types) or signal.__class__ == ComplexSignal:
             res = ComplexSignal(name=f'Фильтр({signal.name})', Fs=signal.Fs)
@@ -675,13 +688,11 @@ def dfilter(*signals, b, a=1):
     return res_array[0] if len(res_array) == 1 else res_array
 
 
-def delay(signal: DiscreteSignal, t, trip_if_start_true=False):
+def delay(signal: DiscreteSignal, t):
     """ Задержка на срабатывание логического сигнала
 
     :param signal: логический сигнал, type: DiscreteSignal
     :param t: время задержки, с
-    :param trip_if_start_true: флаг, определяющий что делать, если в начале процесса вход лог. сигнал в положении True.
-                  False - срабатывание за заданной выдержкой t, True - сразу сработать
     :return: задержанный логический сигнал, type: DiscreteSignal
     """
     Fs = signal.Fs
@@ -690,7 +701,7 @@ def delay(signal: DiscreteSignal, t, trip_if_start_true=False):
     delayed_val = val.copy()
     with np.nditer(delayed_val, op_flags=['readwrite']) as it:
         for num, x in enumerate(it):
-            x[...] = True if (num >= dn or trip_if_start_true) and np.all(val[num - dn:num + 1]) else False
+            x[...] = True if np.all(val[max(0, num - dn):num + 1]) else False
     res = DiscreteSignal(name=f'{signal.name} + tср={t:.3f},c', val=delayed_val, Fs=signal.Fs)
     return res
 
@@ -702,7 +713,18 @@ def delay_to_return(signal: DiscreteSignal, t):
     :param t: время на возврат, с
     :return: задержанный логический сигнал, type: DiscreteSignal
     """
-    res = (~delay(~signal, t=t, trip_if_start_true=True)).change_name(f'{signal.name} + tв={t:.3f},c')
+    Fs = signal.Fs
+    dn = np.int(np.ceil(t * Fs))
+    val = signal.val
+    val_int = np.array(signal.val, dtype=np.int_)
+    dif = np.diff(val_int, prepend=val[0])
+    imp = np.where(dif < 0, True, False)
+    imp_val = imp.copy()
+    with np.nditer(imp_val, op_flags=['readwrite']) as it:
+        for num, x in enumerate(it):
+            x[...] = True if np.any(imp[max(0, num - dn):num + 1]) else False
+    res_val = val | imp_val
+    res = DiscreteSignal(name=f'{signal.name} + tв={t:.3f},c', val=res_val, Fs=signal.Fs)
     return res
 
 

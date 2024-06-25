@@ -80,7 +80,7 @@ def dif_single_phase(I1: _AnalogSignal, I2: _AnalogSignal, Inom1=1, Inom2=1, CT1
         Idif = _ComplexSignal(name='Iдиф', Fs=I1.Fs)
         Idif.val = (val1 + val2).val
         Ibias = _AnalogSignal(name='Iторм', Fs=I1.Fs)
-        Ibias.val = (np.abs(val1) + np.abs(val2)).val / 2
+        Ibias.val = (abs(val1) + abs(val2)).val / 2
     else:
         raise ValueError('Неверный тип входных данных. Сигналы должны быть типа: AnalogSignal или ComplexSignal')
     return Idif, Ibias
