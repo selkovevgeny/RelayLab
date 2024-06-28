@@ -282,9 +282,10 @@ class Record:
         df = pd.DataFrame()
         df['time'] = self.__get_analog_channels()[0].time
         for ch in self.__get_analog_channels():
-            df[ch.name] = analog_func(ch)
+            if not hide_unchanged or ch.dft_abs().val.mean() / ch.rms().val.mean() > 0.5:
+                df[ch.name] = analog_func(ch)
         for ch in self.__get_discrete_channels():
-            if hide_unchanged and (max(ch.val) ^ min(ch.val)):
+            if not hide_unchanged or (max(ch.val) ^ min(ch.val)):
                 df[ch.name] = ch.val
         return df
 
