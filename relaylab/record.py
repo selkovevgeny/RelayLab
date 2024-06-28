@@ -8,11 +8,17 @@ relaylab.record
 import numpy as np
 import pandas as _pd
 from string import ascii_letters as _ascii_letters, digits as _digits
+
+import pandas as pd
+
 from relaylab.comtrade import Comtrade as _Comtrade
-from relaylab.signals import AnalogSignal as _AnalogSignal, DiscreteSignal as _DiscreteSignal, ComplexSignal as _ComplexSignal
+from relaylab.signals import AnalogSignal as _AnalogSignal, DiscreteSignal as _DiscreteSignal, \
+    ComplexSignal as _ComplexSignal
+from relaylab import signals as _sg
 from pathlib import Path as _Path
 import relaylab as _lb
 from datetime import datetime as _datetime
+from typing import Union
 
 _trans_dict = {'Ь': '', 'ь': '', 'Ъ': '', 'ъ': '', 'А': 'A', 'а': 'a', 'Б': 'B', 'б': 'b', 'В': 'V', 'в': 'v',
                'Г': 'G', 'г': 'g', 'Д': 'D', 'д': 'd', 'Е': 'E', 'е': 'e', 'Ё': 'E', 'ё': 'e', 'Ж': 'Zh', 'ж': 'zh',
@@ -206,7 +212,7 @@ class Record:
 
         with open(cfg_path, "w") as cfg:
             cfg.write('relaylab comtrade generator, 0, 2000\n')
-            cfg.write(f'{len(achs)+len(dchs)}, {len(achs)}A, {len(dchs)}D\n')
+            cfg.write(f'{len(achs) + len(dchs)}, {len(achs)}A, {len(dchs)}D\n')
             for nach, ach in enumerate(achs, start=1):
                 cfg.write(f'{nach},{ach.name},,,,1,0,0,{min(ach.val)},{max(ach.val)},1,1,S\n')
             for ndch, dch in enumerate(dchs, start=1):
@@ -222,13 +228,12 @@ class Record:
             cfg.write('ASCII\n')
             cfg.write('1.0')
         # Создание и запись dat файла
-        n = np.arange(1, self.nmax+1)
+        n = np.arange(1, self.nmax + 1)
         t = np.array((n / self.Fs * 1e6), dtype=np.int_)
         matrix = [n, t] + list(map(lambda ch: ch.val, achs)) + list(map(lambda ch: ch.val, dchs))
         matrix_nd = np.stack(matrix, axis=1)
-        format = ['%1.1i'] * 2 + ['%1.6f']*len(achs) + ['%1.1i'] * len(dchs)
+        format = ['%1.1i'] * 2 + ['%1.6f'] * len(achs) + ['%1.1i'] * len(dchs)
         np.savetxt(dat_path, matrix_nd, fmt=format, delimiter=',')
-
 
     def __get_analog_channels(self):
         """Получение кортежа аналоговых каналов"""
@@ -245,6 +250,43 @@ class Record:
             if type(ch) == _DiscreteSignal:
                 dchs.append(ch)
         return tuple(dchs)
+
+    @property
+    def anch(self) -> tuple[_AnalogSignal]:
+        """Кортеж аналоговых каналов"""
+        return self.__get_analog_channels()
+
+    @property
+    def dch(self) -> tuple[_DiscreteSignal]:
+        """Кортеж аналоговых каналов"""
+        return self.__get_discrete_channels()
+
+    @property
+    def time(self) -> np.ndarray:
+        """Время"""
+        return self.__get_analog_channels()[0].time
+
+    def get_dataframe(self, analog_type: str = 'inst', hide_unchanged: bool = True) -> pd.DataFrame:
+        """Функция возвращает DataFrame с аналоговыми и дискретными сигналами"
+
+        :param analog_type: тип возвращаемых каналов 'inst', 'rms', 'dft', 'comp'
+        :param hide_unchanged: скрыть не изменяющиеся каналы
+        :return: DataFrame
+        """
+        #Выбор функции для преобразования аналоговых каналов в датафрейме
+        analog_func_dict = {'inst': lambda ch: ch.val,
+                            'rms': lambda ch: _sg.RMS(ch).val,
+                            'dft': lambda ch: _sg.DFT(ch).abs().val,
+                            'comp': lambda ch: _sg.DFT(ch).val}
+        analog_func = analog_func_dict.setdefault(analog_type, lambda ch: ch.val)
+        df = pd.DataFrame()
+        df['time'] = self.__get_analog_channels()[0].time
+        for ch in self.__get_analog_channels():
+            df[ch.name] = analog_func(ch)
+        for ch in self.__get_discrete_channels():
+            if hide_unchanged and (max(ch.val) ^ min(ch.val)):
+                df[ch.name] = ch.val
+        return df
 
     def describe_analogs(self):
         """Вывод информации по аналоговым каналам осциллограммы"""
