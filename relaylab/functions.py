@@ -9,6 +9,7 @@ relaylab.functions
 from relaylab.signals import AnalogSignal as _AnalogSignal, ComplexSignal as _ComplexSignal, DFT as _DFT
 import numpy as np
 from relaylab.signals import const
+from typing import Union as _Union
 
 
 def _check_type(var, var_types):
@@ -205,6 +206,23 @@ def impedance(*args, imin=0.05, vol='phase'):
     zca = _ComplexSignal(name='Zca', Fs=Fs)
     zca.val = np.where(abs(ica) > imin, uca / (ica + 1e-9), np.full(length, np.nan))
     return zab, zbc, zca
+
+
+def single_phase_impedance(i: _Union[_AnalogSignal, _ComplexSignal], u: _Union[_AnalogSignal, _ComplexSignal], imin=0.05)->_ComplexSignal:
+    """Расчет сопротивления.
+
+    :param i: ток, type: ComplexSignal или AnalogSignal
+    :return: сопротивление, type: ComplexSignal
+    """
+    for arg in (i, u):
+        _check_type(arg, (_AnalogSignal, _ComplexSignal))
+    _check_type_equality(i, u)
+    Fs = i.Fs
+    length = len(i.val)
+    i, u = _DFT(i, u) if type(i == _AnalogSignal) else (i, u)
+    z = _ComplexSignal(name='Z', Fs=Fs)
+    z.val = np.where(abs(i) > imin, u / (i + 1e-9), np.full(length, np.nan))
+    return z
 
 
 if __name__ == '__main__':
