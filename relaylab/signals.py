@@ -11,12 +11,12 @@ relaylab.signals
 
 В составе модуля содержатся базовые функции, выполяющие преобрзования сигналов (см. DFT, RMS и пр.)
 """
+from __future__ import annotations
 import copy as _copy
 import numpy as np
 import relaylab as _relaylab
 from scipy.signal import lfilter as _lfilter
-from relaylab.equipment import Line, Load, System, ShortCircuit
-from scipy.integrate import RK45 as _RK45
+from scipy.integrate import solve_ivp as _solve_ivp
 
 
 class _Const:
@@ -538,7 +538,9 @@ def transient(val_load, fi_load, val_fault, fi_fault, tau, name='signal', tfault
     return res
 
 
-def single_phase_system_model(system: System, line: Line, load: Load, sc: ShortCircuit, alfa=0.5, tfault=0.1, tstop=1.0, tmax=1.0, f=50, Fs=2400) -> tuple[AnalogSignal, AnalogSignal]:
+def single_phase_system_model(system: _relaylab.System, line: _relaylab.Line,
+                              load: _relaylab.Load, sc: _relaylab.ShortCircuit,
+                              alfa=0.5, tfault=0.1, tstop=1.0, tmax=1.0, f=50, Fs=2400) -> tuple[AnalogSignal, AnalogSignal]:
     """Моделирование тока и напряжения в месте установки защиты при КЗ на линии
 
     :param system: параметры системы
@@ -555,19 +557,19 @@ def single_phase_system_model(system: System, line: Line, load: Load, sc: ShortC
 
     # Источник
     w0 = const.w
-    Esys = system.Unom / np.sqrt(3)
-    psi = np.deg2rad(system.psi)
-    Rsys = system.R
-    Lsys = system.X / w0
+    Esys = system.Unom.val / np.sqrt(3)
+    psi = np.deg2rad(system.psi.val)
+    Rsys = system.R.val
+    Lsys = system.X.val / w0
     # Линия
-    Rline = line.R1
-    Lline = line.X1 / w0
+    Rline = line.R1.val
+    Lline = line.X1.val / w0
     # КЗ
     alfa = alfa
-    Rf = sc.R
+    Rf = sc.R.val
     # Нагрузка
-    Rload = load.R
-    Lload = load.X / w0
+    Rload = load.R.val
+    Lload = load.X.val / w0
 
     R1 = Rsys + Rline * alfa
     L1 = Lsys + Lline * alfa
@@ -577,44 +579,42 @@ def single_phase_system_model(system: System, line: Line, load: Load, sc: ShortC
     #Расчет установившегося режима
     I_sin = Esys * np.exp(1j * psi) / (R1 + 1j * w0 * L1 + R2 + 1j * w0 * L2)
     i_sin = abs(I_sin) * np.sin(np.angle(I_sin))
-
     dt = 1 / Fs
-    time = np.arange(0, tmax, dt)
 
     def get_E(t):
-        return Esys * np.sin(w0 * t + psi)
+        return np.sqrt(2) * Esys * np.sin(w0 * t + psi)
 
     def model_prefault(t, i):
         return -(R1 + R2) / (L1 + L2) * i + get_E(t) / (L1 + L2)
 
     def model_fault(t, i):
         M = np.array([[-(Rf + R1) / L1, Rf / L1], [Rf / L2, -(Rf + R2) / L2]])
-        e = np.array([get_E(t), 0.0])
+        col2 = 0 if type(t) in (float, int, np.float_) else np.zeros(len(t))
+        e = np.array([get_E(t), col2])
         return np.dot(M, i) + e / L1
-
-    solver_prefault = _RK45(model_prefault, t0=0, y0=np.array([i_sin]), t_bound=tfault, first_step=dt, max_step=dt)
-    u = []
-    i1 = [i_sin[0]]
-    i2 = [i_sin[0]]
-    while solver_prefault.status == 'running':
-        u_in = get_E(solver_prefault.t) - solver_prefault.y[0] * Rsys \
-               - Lsys * model_prefault(solver_prefault.t, solver_prefault.y)
-        u.append(u_in[0])
-        solver_prefault.step()
-        i1.append(solver_prefault.y[0])
-        i2.append(solver_prefault.y[0])
-
-    solver_fault = _RK45(model_fault, t0=tfault, y0=np.array([i1[-1], i2[-1]]), t_bound=max(time), first_step=dt,
-                        max_step=dt)
-    while solver_fault.status == 'running':
-        u_in = get_E(solver_fault.t) - solver_fault.y[0] * Rsys - Lsys * model_fault(solver_fault.t, solver_fault.y)[0]
-        u.append(u_in)
-        solver_fault.step()
-        i1.append(solver_fault.y[0])
-        i2.append(solver_fault.y[1])
-
-    i_res = AnalogSignal(name='I ', val=np.array(i1),  Fs=Fs)
-    u_res = AnalogSignal(name='I ', val=np.array(u), Fs=Fs)
+    #Предаварийный режим
+    t_eval_prefault = np.arange(0, np.floor(tfault / dt) + 1) * dt
+    sol_prefault = _solve_ivp(model_prefault, t_span=(0, tfault), y0=np.array([i_sin]), t_eval=t_eval_prefault)
+    i_prefault = sol_prefault.y[0]
+    u_prefault = get_E(t_eval_prefault) - i_prefault * Rsys - Lsys * model_prefault(t_eval_prefault, i_prefault)
+    #Аварийный режим
+    t_eval_fault = np.arange((np.floor(tfault / dt) + 1), (np.floor(tmax / dt) + 1)) * dt
+    sol_fault = _solve_ivp(model_fault, t_span=(tfault, tmax), y0=np.array((i_prefault[-1], i_prefault[-1])),
+                          t_eval=t_eval_fault)
+    i_fault = sol_fault.y[0]
+    u_fault = get_E(t_eval_fault) - i_fault * Rsys - Lsys * model_fault(t_eval_fault, sol_fault.y)[0]
+    i = np.concatenate((i_prefault, i_fault))
+    u = np.concatenate((u_prefault, u_fault))
+    #Ограничение режима КЗ
+    if tstop < tmax:
+        nstop = int(tstop * Fs)
+        nmax = len(i)
+        dn = int(Fs/f/2) + 1 #пол периода+1 отсчет
+        n_cross = np.argmin(np.abs(i[nstop:min(nstop+dn, nmax)]))
+        i[nstop + n_cross:] = 0
+        u[nstop + n_cross:] = get_E(np.arange(nstop + n_cross, nmax)/Fs)
+    i_res = AnalogSignal(name='I', val=i,  Fs=Fs)
+    u_res = AnalogSignal(name='U', val=u, Fs=Fs)
     return i_res, u_res
 
 

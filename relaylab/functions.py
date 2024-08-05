@@ -208,7 +208,7 @@ def impedance(*args, imin=0.05, vol='phase'):
     return zab, zbc, zca
 
 
-def single_phase_impedance(i: _Union[_AnalogSignal, _ComplexSignal], u: _Union[_AnalogSignal, _ComplexSignal], imin=0.05)->_ComplexSignal:
+def impedance_single_phase(i: _Union[_AnalogSignal, _ComplexSignal], u: _Union[_AnalogSignal, _ComplexSignal], imin=0.05)->_ComplexSignal:
     """Расчет сопротивления.
 
     :param i: ток, type: ComplexSignal или AnalogSignal
@@ -216,10 +216,11 @@ def single_phase_impedance(i: _Union[_AnalogSignal, _ComplexSignal], u: _Union[_
     """
     for arg in (i, u):
         _check_type(arg, (_AnalogSignal, _ComplexSignal))
-    _check_type_equality(i, u)
+    _check_type_equality((i, u))
     Fs = i.Fs
     length = len(i.val)
     i, u = _DFT(i, u) if type(i == _AnalogSignal) else (i, u)
+    i, u = map(lambda s: s.val, (i, u))
     z = _ComplexSignal(name='Z', Fs=Fs)
     z.val = np.where(abs(i) > imin, u / (i + 1e-9), np.full(length, np.nan))
     return z
@@ -228,9 +229,7 @@ def single_phase_impedance(i: _Union[_AnalogSignal, _ComplexSignal], u: _Union[_
 if __name__ == '__main__':
     from relaylab.signals import sin
 
-    Ia = sin(1, 0, 'Ia', tmax=0.1)
-    Ib = sin(1, 240, 'Ib', tmax=0.1)
-    Ic = sin(1, 120, 'Ic', tmax=0.1)
-    I1, I2, I0 = symmetrical_comp(Ia, Ib, Ic)
-    print(abs(I1.val[49]), abs(I2.val[49]), abs(I0.val[49]))
-    print(Ia.dft().val[49] / Ia.dft().val[49], Ib.dft().val[49] / Ia.dft().val[49], Ic.dft().val[49] / Ia.dft().val[49])
+    U = sin(10, 0, 'U', tmax=0.1)
+    I = sin(1, 0, 'I', tmax=0.1)
+    impedance_single_phase(U, I)
+

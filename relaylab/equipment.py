@@ -20,7 +20,7 @@ class _Var:
              'км': 1000, 'Ом/км': 0.001}
 
     def __init__(self, val=None, name='', desc='', unit='', n_digits=2):
-        self.val = round(val, n_digits) * self.__mul[unit]
+        self.val = val * self.__mul[unit]
         self.name = name
         self.desc = desc
         self.unit = unit
@@ -82,7 +82,7 @@ class _Var:
             raise ValueError(f'Неверный тип данных: {power}')
 
     def __str__(self):
-        return f'{self.name} = {self.val / self.__mul[self.unit]} - {self.desc}, {self.unit}'
+        return f'{self.name} = {round(self.val / self.__mul[self.unit], self.n_digits)} - {self.desc}, {self.unit}'
 
     def __repr__(self):
         return f'{str(self.__class__)}: {self.name}'
@@ -180,7 +180,7 @@ class System(Equipment):
     Isc3 - ток трехфазного КЗ на шинах системы, А;
     Isc2 - ток двухфазного КЗ на шинах системы, А;
     tau - постоянная времени сети, c;
-    psi - начальный угол, град.
+    psi - начальный угол, гр;
     Расчетные величины:
     R, X, Z - сопротивление системы, Ом;
     """
@@ -191,7 +191,7 @@ class System(Equipment):
         self.Isc2 = _Var(val=Isc3 * 3 ** 0.5 / 2, name='Iкз(2ф)', desc='ток двухфазного КЗ на шинах системы', unit='А',
                          n_digits=0)
         self.tau = _Var(val=tau, name='tau', desc='постоянная времени сети', unit='с', n_digits=2)
-        self.psi = _Var(val=tau, name='psi', desc='начальный угол', unit='град', n_digits=2)
+        self.psi = _Var(val=tau, name='psi', desc='начальный угол', unit='гр', n_digits=2)
         self.__calc_impedances()
 
     def __calc_impedances(self):
@@ -223,13 +223,13 @@ class Line(Equipment):
         self.r0 = _Var(val=r0, name='r0 уд', desc='удельное активное сопротивление нулевой последовательности',
                        unit='Ом/км', n_digits=3)
         self.X1 = _Var(val=x1 * L, name='X1', desc='активное сопротивление прямой последовательности',
-                            unit='Ом/км', n_digits=3)
+                            unit='Ом', n_digits=3)
         self.R1 = _Var(val=r1 * L, name='R1', desc='индуктивное сопротивление прямой последовательности',
-                            unit='Ом/км', n_digits=3)
+                            unit='Ом', n_digits=3)
         self.X0 = _Var(val=x0 * L, name='X0', desc='активное сопротивление нулевой последовательности',
-                            unit='Ом/км', n_digits=3)
+                            unit='Ом', n_digits=3)
         self.R0 = _Var(val=r0 * L, name='R0', desc='индуктивное сопротивление нулевой последовательности',
-                            unit='Ом/км', n_digits=3)
+                            unit='Ом', n_digits=3)
 
 
 class ShortCircuit(Equipment):
