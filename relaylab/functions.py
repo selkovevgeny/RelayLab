@@ -10,7 +10,7 @@ from relaylab.signals import AnalogSignal as _AnalogSignal, ComplexSignal as _Co
 import numpy as np
 from relaylab.signals import const
 from typing import Union as _Union
-
+from scipy.signal import lfilter as _lfilter
 
 def _check_type(var, var_types):
     if type(var) not in var_types:
@@ -179,6 +179,7 @@ def impedance(*args, imin=0.05, vol='phase'):
 
     :param args: IA, IB, IC, UAB, UBC, UCA (UA, UB, UC) type: ComplexSignal или AnalogSignal
     :param vol: напряжения фазные (phase), линейные (line) type: str
+    :param imin: минимальное значение тока при котором осуществлятся расчет, type: float
     :return: ZAB, ZBC , ZCA type: ComplexSignal
     """
     for arg in args:
@@ -208,21 +209,52 @@ def impedance(*args, imin=0.05, vol='phase'):
     return zab, zbc, zca
 
 
-def impedance_single_phase(i: _Union[_AnalogSignal, _ComplexSignal], u: _Union[_AnalogSignal, _ComplexSignal], imin=0.05)->_ComplexSignal:
+def impedance_single_phase(i: _Union[_AnalogSignal, _ComplexSignal], u: _Union[_AnalogSignal, _ComplexSignal],
+                           imin=0.05, method='fourier')->_ComplexSignal:
     """Расчет сопротивления.
 
     :param i: ток, type: ComplexSignal или AnalogSignal
+    :param u: напряжение, type: ComplexSignal или AnalogSignal
+    :param imin: минимальное значение тока при котором осуществлятся расчет, type: float
+    :param method: метод расчета: fourier - расчет по Фурье;
+                                  sanderson - расчет по уравнению линии, формула Сандерсона
+
     :return: сопротивление, type: ComplexSignal
     """
     for arg in (i, u):
         _check_type(arg, (_AnalogSignal, _ComplexSignal))
     _check_type_equality((i, u))
     Fs = i.Fs
-    length = len(i.val)
-    i, u = _DFT(i, u) if type(i == _AnalogSignal) else (i, u)
-    i, u = map(lambda s: s.val, (i, u))
     z = _ComplexSignal(name='Z', Fs=Fs)
-    z.val = np.where(abs(i) > imin, u / (i + 1e-9), np.full(length, np.nan))
+    length = len(i.val)
+    if method == 'fourier':
+        i, u = _DFT(i, u) if type(i) == _AnalogSignal else (i, u)
+        i, u = map(lambda s: s.val, (i, u))
+        z.val = np.where(abs(i) > imin, u / (i + 1e-9), np.full(length, np.nan))
+    elif method == 'sanderson' and type(i) == _AnalogSignal:
+        i, u = map(lambda s: s.val, (i, u))
+        N = np.int32(Fs / const.fbase)
+        N_length = len(i)
+        b_low = np.sqrt(2) * np.sin(2 * np.pi * np.arange(0.5, N, 1) / N) / N
+        b_f = np.array((1, 1, 1)) / 2.982889722747621
+        b_d = np.array((1, 0, -1)) / 0.261052384440103
+        b_dd = np.array((1, -2, 1)) / 0.017110277252379
+        # фильтрация гармоник выше 50 Гц синусным фильтром
+        u_filt = np.convolve(u, b_low)
+        i_filt = np.convolve(i, b_low)
+        fu = np.convolve(b_f, u_filt)
+        du = np.convolve(b_d, u_filt) * const.w
+        fi = np.convolve(b_f, i_filt)
+        di = np.convolve(b_d, i_filt) * const.w
+        ddi = np.convolve(b_dd, i_filt) * const.w**2
+        L = (fu * di - du * fi) / (di * di - ddi * fi)
+        R = (du * di - fu * ddi) / (di * di - ddi * fi)
+        zcalc = R + 1j * 2 * np.pi * 50 * L
+        zcalc = zcalc[0:N_length]
+        zcalc[0:N+3] = np.nan
+        z.val = np.where(abs(fi[:N_length]+1j*di[:N_length] / const.w) > imin, zcalc, np.full(N_length, np.nan))
+    else:
+        raise ValueError('Ошибка исходных данных в формуле расчета сопротивления')
     return z
 
 
