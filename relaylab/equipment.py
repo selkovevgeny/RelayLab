@@ -294,35 +294,54 @@ class CT(Equipment):
     xload - фактическое реактивное сопротивление вторичной нагрузки.
     """
 
-    def __init__(self, I1nom, I2nom, Knom=20, Snom=50, cos_nom=0.8, r2=10., x2=0., Sload=6.3, cos_load=1.0):
+    def __init__(self, I1nom, I2nom, Knom=20, Snom=50, znom =None, cos_nom=0.8, r2=10., x2=0., Sload=6.3, zload=None, cos_load=1.0):
         self.I1nom = _Var(val=I1nom, name='I1ном', desc='номинальный первичный ток', unit='А', n_digits=0)
         self.I2nom = _Var(val=I2nom, name='I2ном', desc='номинальный вторичный ток', unit='А', n_digits=0)
         self.Knom = _Var(val=Knom, name='Кном', desc='номинальная допустимая предельная кратность', unit='', n_digits=0)
         self.I1faultnom = _Var(val=self.I1nom * self.Knom, name='I1ном кз',
                                desc='номинальный предельный допустимый ток КЗ', unit='А', n_digits=0)
-        self.Snom = _Var(val=Snom, name='Sном', desc='номинальная вторичная мощность', unit='ВА', n_digits=0)
         self.cos_nom = _Var(val=cos_nom, name='cos ном', desc='номинальный коэффициент мощности', unit='', n_digits=2)
-        self.Sload = _Var(val=Sload, name='Sнагр', desc='фактическая вторичная мощность', unit='ВА', n_digits=2)
-        self.cos_load = _Var(val=cos_load, name='cos нагр', desc='фактический коэффициент мощности', unit='',
-                             n_digits=2)
         self.r2 = _Var(val=r2, name='R2', desc='активное сопротивление вторичной обмотки', unit='Ом', n_digits=3)
         self.x2 = _Var(val=x2, name='X2', desc='реактивное сопротивление вторичной обмотки', unit='Ом', n_digits=3)
         self.n = _Var(val=self.I1nom / self.I2nom, name='n', desc='коэффициент трансформации', unit='', n_digits=0)
-        self.__calc_impedances()
-
-    def __calc_impedances(self):
-        Rnom, Xnom = self.Snom.val * self.cos_nom.val / self.I2nom.val ** 2, self.Snom.val * np.sqrt(
-            1 - self.cos_nom.val ** 2) / self.I2nom.val ** 2
-        Rload, Xload = self.Sload.val * self.cos_load.val / self.I2nom.val ** 2, self.Sload.val * np.sqrt(
-            1 - self.cos_load.val ** 2) / self.I2nom.val ** 2
-        self.rnom = _Var(val=Rnom, name='Rном', desc='номинальное активное сопротивление вторичной нагрузки', unit='Ом',
-                         n_digits=3)
-        self.xnom = _Var(val=Xnom, name='Xном', desc='номинальное реактивное сопротивление вторичной нагрузки',
-                         unit='Ом', n_digits=3)
-        self.rload = _Var(val=Rload, name='Rфакт', desc='фактическое активное сопротивление вторичной нагрузки',
-                          unit='Ом', n_digits=3)
-        self.xload = _Var(val=Xload, name='Xфакт', desc='фактическое реактивное сопротивление вторичной нагрузки',
-                          unit='Ом', n_digits=3)
+        if znom is None:
+            self.Snom = _Var(val=Snom, name='Sном', desc='номинальная вторичная мощность', unit='ВА', n_digits=0)
+            Rnom, Xnom = self.Snom.val * self.cos_nom.val / self.I2nom.val ** 2, self.Snom.val * np.sqrt(
+                1 - self.cos_nom.val ** 2) / self.I2nom.val ** 2
+            self.rnom = _Var(val=Rnom, name='Rном', desc='номинальное активное сопротивление вторичной нагрузки',
+                             unit='Ом', n_digits=3)
+            self.xnom = _Var(val=Xnom, name='Xном', desc='номинальное реактивное сопротивление вторичной нагрузки',
+                             unit='Ом', n_digits=3)
+            self.znom = _Var(val=np.sqrt(Xnom ** 2 + Rnom ** 2), name='Zном',
+                             desc='номинальное полное сопротивление вторичной нагрузки', unit='Ом', n_digits=3)
+        else:
+            self.znom = _Var(val=znom, name='Zном',
+                             desc='номинальное полное сопротивление вторичной нагрузки', unit='Ом', n_digits=3)
+            self.rnom = _Var(val=znom * self.cos_nom.val, name='Rном', desc='номинальное активное сопротивление вторичной нагрузки',
+                             unit='Ом', n_digits=3)
+            self.xnom = _Var(val=znom * np.sqrt(1 - self.cos_nom.val**2), name='Xном', desc='номинальное реактивное сопротивление вторичной нагрузки',
+                             unit='Ом', n_digits=3)
+            self.Snom = _Var(val=znom * self.I2nom.val ** 2, name='Sном', desc='номинальная вторичная мощность', unit='ВА', n_digits=0)
+        if zload is None:
+            self.Sload = _Var(val=Sload, name='Sнагр', desc='фактическая вторичная мощность', unit='ВА', n_digits=2)
+            self.cos_load = _Var(val=cos_load, name='cos нагр', desc='фактический коэффициент мощности', unit='',
+                             n_digits=2)
+            Rload, Xload = self.Sload.val * self.cos_load.val / self.I2nom.val ** 2, self.Sload.val * np.sqrt(
+                1 - self.cos_load.val ** 2) / self.I2nom.val ** 2
+            self.rload = _Var(val=Rload, name='Rфакт', desc='фактическое активное сопротивление вторичной нагрузки',
+                              unit='Ом', n_digits=3)
+            self.xload = _Var(val=Xload, name='Xфакт', desc='фактическое реактивное сопротивление вторичной нагрузки',
+                              unit='Ом', n_digits=3)
+            self.zload = _Var(val=np.sqrt(Xload**2 + Rload**2), name='Zфакт', desc='фактическое полное сопротивление вторичной нагрузки',
+                             unit='Ом', n_digits=3)
+        else:
+            self.zload = _Var(val=zload, name='Zфакт', desc='фактическое полное сопротивление вторичной нагрузки',
+                             unit='Ом', n_digits=3)
+            self.rload = _Var(val=zload * self.cos_load.val, name='Rфакт', desc='фактическое активное сопротивление вторичной нагрузки',
+                              unit='Ом', n_digits=3)
+            self.xload = _Var(val=zload* np.sqrt(1 - self.cos_load.val**2), name='Xфакт', desc='фактическое реактивное сопротивление вторичной нагрузки',
+                              unit='Ом', n_digits=3)
+            self.Sload = _Var(val=zload * self.I2nom.val ** 2, name='Sнагр', desc='фактическая вторичная мощность', unit='ВА', n_digits=2)
 
     def calc_saturation(self, Isc, tau, Kr=0.86):
         """Расчет времени до насыщения ТТ

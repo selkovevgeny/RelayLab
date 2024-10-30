@@ -667,12 +667,14 @@ def RMS(*signals):
     return res_array[0] if len(res_array) == 1 else res_array
 
 
-def ct_tf(*signals, ct, Kr=0):
+def ct_tf(*signals, ct, Kr=0, return_flux=False, saturation=True):
     """Расчет вторичного тока трансформатора тока методом ПХН.
 
     :param signals: аналоговые сигналы класса AnalogSignal
     :param ct: модель трансформатора тока
     :param Kr: остаточная индукция от -1 до 1
+    :param return_flux: включать в результат нормированный магнитный поток или нет
+    :param saturation: включение насыщение ТТ
     :return: список аналоговых сигналов класса AnalogSignal
     """
     res_array = []
@@ -689,6 +691,7 @@ def ct_tf(*signals, ct, Kr=0):
         didt = np.diff(i1, append=i1[-1]) * Fs
         # Расчетные сигналы
         i2 = np.array([])
+        flux = np.array([])
         # Инициализация
         flux_point = Kr
         i2_point = 0
@@ -696,13 +699,15 @@ def ct_tf(*signals, ct, Kr=0):
         i0_prev = 0
         for i_point, didt_point in zip(i1, didt):
             flux_point = flux_point + (L2 * didt_point + r2*i_point)/Fs
-            # Насыщение наступает при потоке больше 1 или меньше -1
-            if flux_point > 1:
-                flux_point = 1
-                is_saturated = True
-            elif flux_point < -1:
-                flux_point = -1
-                is_saturated = True
+            if saturation:
+                # Насыщение наступает при потоке больше 1 или меньше -1
+                if flux_point > 1:
+                    flux_point = 1
+                    is_saturated = True
+                elif flux_point < -1:
+                    flux_point = -1
+                    is_saturated = True
+            flux = np.append(flux, flux_point)
             if is_saturated:
                 i2_point = 0 if L2 == 0 or (1 - r2/Fs/L2) < 0 else i2_point * (1 - r2/Fs/L2)
             else:
@@ -715,8 +720,12 @@ def ct_tf(*signals, ct, Kr=0):
             i0_prev = i0
             i2 = np.append(i2, i2_point)
         i2_res = AnalogSignal(name=signal.name + ' втор.', Fs=signal.Fs)
+        flux_res = AnalogSignal(name='Flux ' + signal.name, Fs=signal.Fs)
         i2_res.val = i2 / Kpriv
+        flux_res.val = flux
         res_array.append(i2_res)
+        if return_flux:
+            res_array.append(flux_res)
     return res_array[0] if len(res_array) == 1 else res_array
 
 
