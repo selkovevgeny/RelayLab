@@ -303,6 +303,7 @@ class CT(Equipment):
         self.cos_nom = _Var(val=cos_nom, name='cos ном', desc='номинальный коэффициент мощности', unit='', n_digits=2)
         self.r2 = _Var(val=r2, name='R2', desc='активное сопротивление вторичной обмотки', unit='Ом', n_digits=3)
         self.x2 = _Var(val=x2, name='X2', desc='реактивное сопротивление вторичной обмотки', unit='Ом', n_digits=3)
+        self.z2 = _Var(val=np.sqrt(x2**2 + r2**2), name='Z2', desc='полное сопротивление вторичной обмотки', unit='Ом', n_digits=3)
         self.n = _Var(val=self.I1nom / self.I2nom, name='n', desc='коэффициент трансформации', unit='', n_digits=0)
         if znom is None:
             self.Snom = _Var(val=Snom, name='Sном', desc='номинальная вторичная мощность', unit='ВА', n_digits=0)
@@ -342,6 +343,8 @@ class CT(Equipment):
             self.xload = _Var(val=zload* np.sqrt(1 - self.cos_load.val**2), name='Xфакт', desc='фактическое реактивное сопротивление вторичной нагрузки',
                               unit='Ом', n_digits=3)
             self.Sload = _Var(val=zload * self.I2nom.val ** 2, name='Sнагр', desc='фактическая вторичная мощность', unit='ВА', n_digits=2)
+        self.Kcalc = _Var(val=(self.z2.val + self.znom.val) / (self.z2.val + self.zload.val),
+                          name='Красч.', desc='расчетная допустимая предельная кратность', unit='', n_digits=0)
 
     def calc_saturation(self, Isc, tau, Kr=0.86):
         """Расчет времени до насыщения ТТ
