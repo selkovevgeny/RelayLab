@@ -11,6 +11,7 @@ import numpy as np
 from relaylab.signals import const
 from typing import Union as _Union
 from scipy.signal import lfilter as _lfilter
+from relaylab.equipment import Line
 
 def _check_type(var, var_types):
     if type(var) not in var_types:
@@ -207,6 +208,34 @@ def impedance(*args, imin=0.05, vol='phase'):
     zca = _ComplexSignal(name='Zca', Fs=Fs)
     zca.val = np.where(abs(ica) > imin, uca / (ica + 1e-9), np.full(length, np.nan))
     return zab, zbc, zca
+
+def impedance_phase(*args, imin=0.05, line:Line=Line()):
+    """Расчет фазных сопротивлений.
+
+    :param args: IA, IB, IC, UA, UB, UC type: ComplexSignal или AnalogSignal
+    :param imin: минимальное значение тока при котором осуществляется расчет, type: float
+    :param line: модель линии электропередач с параметрами, type: Line
+    :return: ZA, ZB , ZC type: ComplexSignal
+    """
+    for arg in args:
+        _check_type(arg, (_AnalogSignal, _ComplexSignal))
+    _check_type_equality(args)
+    Fs = args[0].Fs
+    length = len(args[0].val)
+    args = _DFT(*args) if type(args[0] == _AnalogSignal) else args
+    if len(args) == 6:
+        ia, ib, ic, ua, ub, uc = map(lambda s: s.val, args)
+        i03 = ia + ib + ic
+        k_comp = ((line.r0.val - line.r1.val) + 1j * (line.x0.val - line.x1.val)) / (3 * (line.r1.val + 1j * line.x1.val))
+    else:
+        raise ValueError('Неверное количество аргументов. Должно быть 6: IA, IB, IC, UA, UB, UC')
+    za = _ComplexSignal(name='Za', Fs=Fs)
+    za.val = np.where(abs(ia) > imin, ua / (ia + k_comp * i03 + 1e-9), np.full(length, np.nan))
+    zb = _ComplexSignal(name='Zb', Fs=Fs)
+    zb.val = np.where(abs(ib) > imin, ub / (ib + k_comp * i03 + 1e-9), np.full(length, np.nan))
+    zc = _ComplexSignal(name='Zc', Fs=Fs)
+    zc.val = np.where(abs(ic) > imin, uc / (ic + k_comp * i03 + 1e-9), np.full(length, np.nan))
+    return za, zb, zc
 
 
 def impedance_single_phase(i: _Union[_AnalogSignal, _ComplexSignal], u: _Union[_AnalogSignal, _ComplexSignal],

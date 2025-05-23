@@ -1215,7 +1215,7 @@ class _AsciiDatReader(_DatReader):
                     break
                 values = line.strip().split(self.ASCII_SEPARATOR)
 
-                n = int(values[0])
+                n = int(float(values[0]))
                 # Read time
                 ts_val = float(values[1])
                 ts = self._get_time(n, ts_val, time_base, time_mult)

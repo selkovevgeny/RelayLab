@@ -15,6 +15,7 @@ class TestDifRelay:
 
     @pytest.mark.parametrize('dif, bias, expected', dif_data)
     def test_start(self, dif, bias, expected):
+        """Проверка пускового органа характеристики срабатывания диф. защиты"""
         relay = characteristics.DifRelay(st0=0.2, slope_st1=0.5, slope1=0.2, slope_st2=1.5, slope2=0.5)
         Idif = AnalogSignal(val=np.array([dif]))
         Ibias = AnalogSignal(val=np.array([bias]))
