@@ -61,7 +61,7 @@ def _resample_discrete(channel):
 
 class _Signal:
     """Родительский класс для всех сигналов"""
-    _self_types = (np.float_, np.double, np.single, np.intc, np.int_)
+    _self_types = (np.float64, np.double, np.single, np.intc, np.int64)
 
     def __init__(self, name='signal', val=None, Fs=2400):
         """Создание сигнала
