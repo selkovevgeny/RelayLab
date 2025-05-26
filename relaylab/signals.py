@@ -190,8 +190,8 @@ class DiscreteSignal(_Signal):
 
 
 class _CommonSignal(_Signal):
-    _data_types = (float, int, np.float_, np.single, np.double, np.intc, np.int_)
-    _self_types = (np.float_, np.double, np.single, np.intc, np.int_)
+    _data_types = (float, int, np.float64, np.single, np.double, np.intc, np.int_)
+    _self_types = (np.float64, np.double, np.single, np.intc, np.int_)
 
     def __neg__(self):
         """Инверсия сигнала
@@ -589,7 +589,7 @@ def single_phase_system_model(system: _relaylab.System, line: _relaylab.Line,
 
     def model_fault(t, i):
         M = np.array([[-(Rf + R1) / L1, Rf / L1], [Rf / L2, -(Rf + R2) / L2]])
-        col2 = 0 if type(t) in (float, int, np.float_) else np.zeros(len(t))
+        col2 = 0 if type(t) in (float, int, np.float64) else np.zeros(len(t))
         e = np.array([get_E(t), col2])
         return np.dot(M, i) + e / L1
     #Предаварийный режим
@@ -853,7 +853,7 @@ def discrete2analog(*signals):
     res_array = []
     for signal in signals:
         res = AnalogSignal(name=signal.name, Fs=signal.Fs)
-        res.val = np.array(signal.val, dtype=np.float_)
+        res.val = np.array(signal.val, dtype=np.float64)
         res_array.append(res)
     return res_array[0] if len(res_array) == 1 else res_array
 
