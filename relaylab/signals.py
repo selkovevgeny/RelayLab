@@ -128,8 +128,8 @@ class _Signal:
 
 class DiscreteSignal(_Signal):
     """Класс дискретных сигналов"""
-    _data_types = (np.bool_, bool)
-    _self_types = (np.bool_, )
+    _data_types = (np.bool, bool)
+    _self_types = (np.bool, )
 
     def __and__(self, other):
         """Логическое И
@@ -190,8 +190,8 @@ class DiscreteSignal(_Signal):
 
 
 class _CommonSignal(_Signal):
-    _data_types = (float, int, np.float64, np.single, np.double, np.intc, np.int_)
-    _self_types = (np.float64, np.double, np.single, np.intc, np.int_)
+    _data_types = (float, int, np.float64, np.single, np.double, np.intc, np.int64)
+    _self_types = (np.float64, np.double, np.single, np.intc, np.int64)
 
     def __neg__(self):
         """Инверсия сигнала
@@ -402,9 +402,9 @@ class AnalogSignal(_CommonSignal):
 
 class ComplexSignal(_CommonSignal):
     """Класс комлексных сигналов"""
-    _data_types = (float, int, np.single, np.double, np.intc, np.int_,
-                   np.complex_, complex, np.complex128, np.csingle, np.cdouble, np.clongdouble)
-    _self_types = (np.complex_, np.complex128, np.csingle, np.cdouble, np.clongdouble)
+    _data_types = (float, int, np.single, np.double, np.intc, np.int64,
+                   np.complex128, complex, np.complex128, np.csingle, np.cdouble, np.clongdouble)
+    _self_types = (np.complex128, np.csingle, np.cdouble, np.clongdouble)
 
     def abs(self):
         """Возвращает модуль комплексных значений"""
@@ -808,7 +808,7 @@ def delay_to_return(signal: DiscreteSignal, t):
     Fs = signal.Fs
     dn = np.int(np.ceil(t * Fs))
     val = signal.val
-    val_int = np.array(signal.val, dtype=np.int_)
+    val_int = np.array(signal.val, dtype=np.int64)
     dif = np.diff(val_int, prepend=val[0])
     imp = np.where(dif < 0, True, False)
     imp_val = imp.copy()
@@ -829,14 +829,14 @@ def impulse_former(signal: DiscreteSignal, t, impulse_type='front'):
                                     both - формирователь по переднему и по заднему фронту
     :return: импульс длительностью t, type: DiscreteSignal
     """
-    val = np.array(signal.val, dtype=np.int_)
+    val = np.array(signal.val, dtype=np.int64)
     dif = np.diff(val, prepend=val[0])
     if impulse_type == 'front':
         imp = np.where(dif>0, True, False)
     elif impulse_type == 'back':
         imp = np.where(dif<0, True, False)
     elif impulse_type == 'both':
-        imp = np.array(dif, dtype=np.bool_)
+        imp = np.array(dif, dtype=np.bool)
     else:
         raise ValueError(f'Не верное значение параметра "impulse_type". Возможные значения: "front", "back" и "both"')
     imp_ds = DiscreteSignal(name='Импульс', val=imp, Fs=signal.Fs)
