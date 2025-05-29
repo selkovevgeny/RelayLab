@@ -9,7 +9,7 @@ relaylab.signals
 
 В составе модуля содержатся функции для генерации сигналов, типичных для энергосистемы (см. функции sin, transient и пр.)
 
-В составе модуля содержатся базовые функции, выполяющие преобрзования сигналов (см. DFT, RMS и пр.)
+В составе модуля содержатся базовые функции, выполняющие преобразования сигналов (см. DFT, RMS и пр.)
 """
 from __future__ import annotations
 import copy as _copy
@@ -128,8 +128,8 @@ class _Signal:
 
 class DiscreteSignal(_Signal):
     """Класс дискретных сигналов"""
-    _data_types = (np.bool, bool)
-    _self_types = (np.bool, )
+    _data_types = (np.bool_, bool)
+    _self_types = (np.bool_, )
 
     def __and__(self, other):
         """Логическое И
@@ -274,7 +274,7 @@ class _CommonSignal(_Signal):
         if type(other) in self._data_types:
             signal = self.__class__(name=self.name+f'*{other:2f}', Fs=self.Fs)
             signal.val = self.val * other
-        elif type(other) == self.__class__:
+        elif type(other) == self.__class__ or type(other) == DiscreteSignal:
             signal = self.__class__(name=self.name + f'*{other.name}', Fs=self.Fs)
             signal.val = self.val * other.val
         else:
@@ -788,7 +788,7 @@ def delay(signal: DiscreteSignal, t):
     :return: задержанный логический сигнал, type: DiscreteSignal
     """
     Fs = signal.Fs
-    dn = np.int(np.ceil(t * Fs))
+    dn = np.int32(np.ceil(t * Fs))
     val = signal.val
     delayed_val = val.copy()
     with np.nditer(delayed_val, op_flags=['readwrite']) as it:
@@ -806,7 +806,7 @@ def delay_to_return(signal: DiscreteSignal, t):
     :return: задержанный логический сигнал, type: DiscreteSignal
     """
     Fs = signal.Fs
-    dn = np.int(np.ceil(t * Fs))
+    dn = np.int32(np.ceil(t * Fs))
     val = signal.val
     val_int = np.array(signal.val, dtype=np.int64)
     dif = np.diff(val_int, prepend=val[0])
@@ -836,7 +836,7 @@ def impulse_former(signal: DiscreteSignal, t, impulse_type='front'):
     elif impulse_type == 'back':
         imp = np.where(dif<0, True, False)
     elif impulse_type == 'both':
-        imp = np.array(dif, dtype=np.bool)
+        imp = np.array(dif, dtype=np.bool_)
     else:
         raise ValueError(f'Не верное значение параметра "impulse_type". Возможные значения: "front", "back" и "both"')
     imp_ds = DiscreteSignal(name='Импульс', val=imp, Fs=signal.Fs)
@@ -880,7 +880,8 @@ if __name__ == '__main__':
 
     # i = transient(name='I', val_load=0, fi_load=0, val_fault=1000, fi_fault=0, tau=0.05, tfault=0.04,
     #               tmax=0.2, tstop=0.15, f=50, Fs=1200)
-    imp = impulses(vals=[0, 220, 0, 0], t=[0, 0.1, 0.15, 0.2], name='signal', Fs=100)
-    sin_signal = sin(1, 0, tmax=0.1, tstart=0.02, tstop=0.06, Fs=1000)
-    print(sin_signal.val)
+    # imp = impulses(vals=[0, 220, 0, 0], t=[0, 0.1, 0.15, 0.2], name='signal', Fs=100)
+    # sin_signal = sin(1, 0, tmax=0.1, tstart=0.02, tstop=0.06, Fs=1000)
+    # print(sin_signal.val)
+    print(type(np.complex128) == type(complex))
 

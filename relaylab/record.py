@@ -86,14 +86,15 @@ class Record:
     Количество дискретных каналов: 61
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, encoding='undefined'):
         """Инициализация экземпляра класса. Загрузка осциллограммы в формате COMTRADE или
         создание на основе аналоговых или дискретных сигналов
 
-        :param args: путь к файлу осциллограммы или список каналов
+        :param args: путь к файлу осциллограммы или список каналов.
+        :param encoding: кодировка файла cfg cp1251, cp866
         """
         if len(args) == 1 and type(args[0]) == str:
-            self.__comtrade = self.__open_comtrade(args[0])
+            self.__comtrade = self.__open_comtrade(args[0], encoding=encoding)
             self.Fs = self.__get_Fs()
             self.nmax = self.__comtrade.total_samples
             self.tmax = self.nmax / self.Fs
@@ -107,10 +108,13 @@ class Record:
             self.append(*args)
 
     @staticmethod
-    def __open_comtrade(comtrade_file):
+    def __open_comtrade(comtrade_file, encoding):
         if comtrade_file:
             with open(comtrade_file, "rb") as cfg:
-                cfg_encoding = _define_encoding(cfg.read())
+                if encoding == "undefined":
+                    cfg_encoding = _define_encoding(cfg.read())
+                else:
+                    cfg_encoding = encoding
             if cfg_encoding != "undefined":
                 """Downloading comtrade record and create analog and digital channels"""
                 record = _Comtrade(use_numpy_arrays=True)
@@ -337,4 +341,5 @@ class _Examples:
 examples = _Examples(directory='records')
 
 if __name__ == '__main__':
-    print(examples.__dict__)
+    rec = Record('C:\\python\\notebooks\\DSP\\ОЗЗ\\osc\\2.cfg', encoding='cp866')
+    print(rec.Ia * rec.RPO)
