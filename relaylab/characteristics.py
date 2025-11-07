@@ -77,7 +77,7 @@ class DifRelay(_Relay):
                   '(Idif1, ... , Idifn, Ibias1, ..., Ibiasn)'
         Idifs, Ibiases = signals[0:length//2], signals[length//2:]
         self._check_type(Idifs, _AnalogSignal)
-        self._check_type(Idifs, _AnalogSignal)
+        self._check_type(Ibiases, _AnalogSignal)
         res_arr = []
         for Idif, Ibias in zip(Idifs, Ibiases):
             Idif_val = Idif.dft_abs().val if dif_dft else Idif.val
@@ -352,13 +352,14 @@ class DistanceRelay(_Relay):
             points = - points
         return points[:, 0], points[:, 1]
 
-    def start(self, signal: _ComplexSignal):
+    def start(self, *signals: _ComplexSignal):
         """Пусковой орган сопротивления без контура памяти. Срабатывание происходит при попадании в характеристику срабатывания.
         Учитывает направленность, обратное направление, вырез нагрузки
 
-        :param signal: входной сигнал, type: AnalogSignal
+        :param signals: входные сигналы, type: AnalogSignal
         :return: логический сигнал, type: DiscreteSignal
         """
+        self._check_type(signals, _ComplexSignal)
         fi_line = np.deg2rad(self.fi_line)
         fi_right = np.deg2rad(self.fi_right)
         fi_load = np.deg2rad(self.fi_load)
@@ -375,23 +376,29 @@ class DistanceRelay(_Relay):
         load_neg = np.tan(-fi_load), 0  # нагрузка отрицательный наклон
         r_pos = 100000, -100000 * self.r_load  # нагрузка справа
         r_neg = 100000, 100000 * self.r_load  # нагрузка слева
-        start = []
-        if self.backward:
-            signal = - signal
-        for z in signal.val:
-            xp = np.real(z)
-            yp = np.imag(z)
-            st = (((up[0] * xp + up[1]) > yp > (down[0] * xp + down[1])) and
-                  ((yp - right[1]) / right[0]) > xp > ((yp - left[1]) / left[0]))
-            if self.directed:
-                st = st and (((yp - up_ray[1]) / up_ray[0]) < xp and ((right_ray[0] * xp + right_ray[1]) < yp))
-            if self.r_load is not None:
-                st = (st and not (((load_pos[0] * xp + load_pos[1]) > yp > (load_neg[0] * xp + load_neg[1])) and
-                                 ((yp - r_pos[1]) / r_pos[0]) < xp) and not
-                            (((load_pos[0] * xp + load_pos[1]) < yp < (load_neg[0] * xp + load_neg[1])) and
-                                 ((yp - r_neg[1]) / r_neg[0]) > xp))
-            start.append(st)
-        return start
+        res_arr = []
+        for signal in signals:
+            signal_val  = signal.val
+            start = []
+            if self.backward:
+                signal_val = - signal_val
+            for z in signal_val:
+                xp = np.real(z)
+                yp = np.imag(z)
+                st = (((up[0] * xp + up[1]) > yp > (down[0] * xp + down[1])) and
+                      ((yp - right[1]) / right[0]) > xp > ((yp - left[1]) / left[0]))
+                if self.directed:
+                    st = st and (((yp - up_ray[1]) / up_ray[0]) < xp and ((right_ray[0] * xp + right_ray[1]) < yp))
+                if self.r_load is not None:
+                    st = (st and not (((load_pos[0] * xp + load_pos[1]) > yp > (load_neg[0] * xp + load_neg[1])) and
+                                     ((yp - r_pos[1]) / r_pos[0]) < xp) and not
+                                (((load_pos[0] * xp + load_pos[1]) < yp < (load_neg[0] * xp + load_neg[1])) and
+                                     ((yp - r_neg[1]) / r_neg[0]) > xp))
+                start.append(st)
+            start_resampled = _resample_discrete(np.array(start))
+            res_arr.append(_DiscreteSignal(name=f'{signal.name}<', val=start_resampled, Fs=signal.Fs))
+        return res_arr[0] if len(res_arr) == 1 else tuple(res_arr)
+
 
 if __name__ == '__main__':
     relay = DistanceRelay(z_line=10, fi_line=70, r_right=10, fi_right=70, offset=0.2, r_load=5, fi_load=35, backward=True)
@@ -403,8 +410,8 @@ if __name__ == '__main__':
     ang_z_ar = np.array(np.meshgrid(z, ang)).T.reshape(-1, 2)
     z = ang_z_ar[:,0] * np.exp(1j*np.deg2rad(ang_z_ar[:, 1]))
     trip = relay2.start(_ComplexSignal(val=z))
-    trip_color = [color.green if t else color.grey for t in trip]
-
+    trip_color = [color.green if t else color.grey for t in trip.val]
+    print(trip)
     fig = go.Figure()
     fig.add_scatter(x=r, y=x, name='Первая ступень ДЗ', mode='lines', fill="toself")
     fig.add_scatter(x=r2, y=x2, name='Первая ступень ДЗ направл.', mode='lines', fill="toself")
