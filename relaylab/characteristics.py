@@ -379,30 +379,33 @@ class DistanceRelay(_Relay):
         res_arr = []
         for signal in signals:
             signal_val  = signal.val
-            start = []
             if self.backward:
                 signal_val = - signal_val
-            for z in signal_val:
-                xp = np.real(z)
-                yp = np.imag(z)
-                st = (((up[0] * xp + up[1]) > yp > (down[0] * xp + down[1])) and
-                      ((yp - right[1]) / right[0]) > xp > ((yp - left[1]) / left[0]))
-                if self.directed:
-                    st = st and (((yp - up_ray[1]) / up_ray[0]) < xp and ((right_ray[0] * xp + right_ray[1]) < yp))
-                if self.r_load is not None:
-                    st = (st and not (((load_pos[0] * xp + load_pos[1]) > yp > (load_neg[0] * xp + load_neg[1])) and
-                                     ((yp - r_pos[1]) / r_pos[0]) < xp) and not
-                                (((load_pos[0] * xp + load_pos[1]) < yp < (load_neg[0] * xp + load_neg[1])) and
-                                     ((yp - r_neg[1]) / r_neg[0]) > xp))
-                start.append(st)
-            start_resampled = _resample_discrete(np.array(start))
+            xp = np.real(signal_val)
+            yp = np.imag(signal_val)
+            start = ((((up[0] * xp + up[1]) > yp) &
+                      (yp > (down[0] * xp + down[1]))) &
+                     (((yp - right[1]) / right[0]) > xp) &
+                     (xp > ((yp - left[1]) / left[0])))
+            if self.directed:
+                start = start & ((((yp - up_ray[1]) / up_ray[0]) < xp) &
+                                 ((right_ray[0] * xp + right_ray[1]) < yp))
+            if self.r_load is not None:
+                start = (start &
+                         np.logical_not(((load_pos[0] * xp + load_pos[1]) > yp) &
+                                         (yp > (load_neg[0] * xp + load_neg[1])) &
+                                        (((yp - r_pos[1]) / r_pos[0]) < xp)) &
+                         np.logical_not(((load_pos[0] * xp + load_pos[1]) < yp) &
+                                         (yp < (load_neg[0] * xp + load_neg[1])) &
+                                        (((yp - r_neg[1]) / r_neg[0]) > xp)))
+            start_resampled = _resample_discrete(start)
             res_arr.append(_DiscreteSignal(name=f'{signal.name}<', val=start_resampled, Fs=signal.Fs))
         return res_arr[0] if len(res_arr) == 1 else tuple(res_arr)
 
 
 if __name__ == '__main__':
-    relay = DistanceRelay(z_line=10, fi_line=70, r_right=10, fi_right=70, offset=0.2, r_load=5, fi_load=35, backward=True)
-    relay2 = DistanceRelay(z_line=10, fi_line=70, r_right=10, fi_right=70, offset=0.2, r_load=5, fi_load=35, directed=True, backward=True)
+    relay = DistanceRelay(z_line=10, fi_line=70, r_right=10, fi_right=70, offset=0.2, r_load=5, fi_load=35, backward=False)
+    relay2 = DistanceRelay(z_line=10, fi_line=70, r_right=10, fi_right=70, offset=0.2, r_load=5, fi_load=35, directed=False, backward=False)
     r, x = relay.get_points()
     r2, x2 = relay2.get_points()
     ang = np.arange(0, 360, 10)
