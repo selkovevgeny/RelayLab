@@ -372,10 +372,11 @@ class DistanceRelay(_Relay):
         up_ray = np.tan(np.deg2rad(105)), 0
         right_ray = np.tan(np.deg2rad(-15)), 0
         # Уравнения линий нагрузки
-        load_pos = np.tan(fi_load), 0  # нагрузка положительный наклон
-        load_neg = np.tan(-fi_load), 0  # нагрузка отрицательный наклон
-        r_pos = 100000, -100000 * self.r_load  # нагрузка справа
-        r_neg = 100000, 100000 * self.r_load  # нагрузка слева
+        if self.r_load is not None:
+            load_pos = np.tan(fi_load), 0  # нагрузка положительный наклон
+            load_neg = np.tan(-fi_load), 0  # нагрузка отрицательный наклон
+            r_pos = 100000, -100000 * self.r_load  # нагрузка справа
+            r_neg = 100000, 100000 * self.r_load  # нагрузка слева
         res_arr = []
         for signal in signals:
             signal_val  = signal.val
