@@ -7,8 +7,9 @@ relaylab.characteristics
 import numpy as np
 from relaylab.signals import AnalogSignal as _AnalogSignal, ComplexSignal as _ComplexSignal, \
     DiscreteSignal as _DiscreteSignal
-from relaylab.signals import const
+from relaylab.signals import const, color
 from relaylab.signals import _resample_discrete
+import plotly.graph_objects as go
 
 
 class _Relay:
@@ -158,7 +159,8 @@ class MinRelay(_Relay):
 class DistanceRelay(_Relay):
     """Четырехугольная характеристика срабатывания дистанционной защиты с вырезом нагрузки"""
 
-    def __init__(self, z_line=10, fi_line=70, r_right=5, fi_right=70, offset=0.1, r_load=None, fi_load=30):
+    def __init__(self, z_line=10, fi_line=70, r_right=5, fi_right=70, offset=0.1, r_load=None, fi_load=30,
+                 backward:bool=False, directed:bool=False):
         """ Задание характеристики срабатывания
 
         :param z_line: Полное сопротивление срабатывания, type:float
@@ -168,6 +170,8 @@ class DistanceRelay(_Relay):
         :param offset: Коэффициент смещения за спину характеристики срабатывания, type:float
         :param r_load: Угол нагрузки, гр, type:float
         :param fi_load: Уставка по активному сопротивлению зоны нагрузки, type:float
+        :param backward: Направленность характеристики в обратную сторону, type:bool
+        :param directed: Флаг направленности пускового органа, type:bool
         """
         super().__init__()
         self.z_line = z_line
@@ -177,6 +181,8 @@ class DistanceRelay(_Relay):
         self.offset = offset
         self.r_load = r_load
         self.fi_load = fi_load
+        self.backward = backward
+        self.directed = directed
 
     @staticmethod
     def __solve_eq(eq1, eq2):
@@ -187,6 +193,7 @@ class DistanceRelay(_Relay):
 
     def get_points(self):
         """Возвращает координаты точек характеристики срабатывания на плоскости: R, X"""
+        #TODO: реализовать направленность при расчете точек для отрисовки
         fi_line = np.deg2rad(self.fi_line)
         fi_right = np.deg2rad(self.fi_right)
         fi_load = np.deg2rad(self.fi_load)
@@ -195,13 +202,37 @@ class DistanceRelay(_Relay):
         right = np.tan(fi_right), -self.r_right * np.tan(fi_right) #правая сторона
         down = 0,  - self.offset * self.z_line * np.sin(fi_line) #нижняя сторона
         left = np.tan(fi_line), self.r_right * np.tan(fi_line) #левая сторона
+        # Уравнения лучей направленной характеристики
+        up_ray = np.tan(np.deg2rad(105)), 0
+        right_ray = np.tan(np.deg2rad(-15)), 0
         # Вычисляем точки пересечения
         t1 = self.__solve_eq(up, right)
         t2 = self.__solve_eq(down, right)
         t3 = self.__solve_eq(down, left)
         t4 = self.__solve_eq(up, left)
+        t0 = np.array([0, 0])
         if self.r_load is None:
-            points = np.array([t1, t2, t3, t4, t1])
+            if self.directed:
+                t2a = self.__solve_eq(right_ray, right)
+                t2b = self.__solve_eq(right_ray, down)
+                t4a = self.__solve_eq(up_ray, left)
+                t4b = self.__solve_eq(up_ray, up)
+                points_array = [t1]
+                if t2a[1] > t2[1]:
+                    points_array.append(t2a)
+                else:
+                    points_array.append(t2)
+                    points_array.append(t2b)
+                points_array.append(t0)
+                if t4a[1] < t4[1]:
+                    points_array.append(t4a)
+                    points_array.append(t4)
+                else:
+                    points_array.append(t4b)
+                points_array.append(t1)
+                points = np.array(points_array)
+            else:
+                points = np.array([t1, t2, t3, t4, t1])
         else:
             points_lst = []
             # Уравнения линий нагрузки
@@ -317,8 +348,69 @@ class DistanceRelay(_Relay):
                         points_lst.append(t4)
             points_lst.append(points_lst[0])
             points = np.array(points_lst)
+        if self.backward:
+            points = - points
         return points[:, 0], points[:, 1]
 
+    def start(self, signal: _ComplexSignal):
+        """Пусковой орган сопротивления без контура памяти. Срабатывание происходит при попадании в характеристику срабатывания.
+        Учитывает направленность, обратное направление, вырез нагрузки
+
+        :param signal: входной сигнал, type: AnalogSignal
+        :return: логический сигнал, type: DiscreteSignal
+        """
+        fi_line = np.deg2rad(self.fi_line)
+        fi_right = np.deg2rad(self.fi_right)
+        fi_load = np.deg2rad(self.fi_load)
+        # Уравнения линий
+        up = 0,  self.z_line * np.sin(fi_line) #верхняя сторона
+        right = np.tan(fi_right), -self.r_right * np.tan(fi_right) #правая сторона
+        down = 0,  - self.offset * self.z_line * np.sin(fi_line) #нижняя сторона
+        left = np.tan(fi_line), self.r_right * np.tan(fi_line) #левая сторона
+        # Уравнения лучей направленной характеристики
+        up_ray = np.tan(np.deg2rad(105)), 0
+        right_ray = np.tan(np.deg2rad(-15)), 0
+        # Уравнения линий нагрузки
+        load_pos = np.tan(fi_load), 0  # нагрузка положительный наклон
+        load_neg = np.tan(-fi_load), 0  # нагрузка отрицательный наклон
+        r_pos = 100000, -100000 * self.r_load  # нагрузка справа
+        r_neg = 100000, 100000 * self.r_load  # нагрузка слева
+        start = []
+        if self.backward:
+            signal = - signal
+        for z in signal.val:
+            xp = np.real(z)
+            yp = np.imag(z)
+            st = (((up[0] * xp + up[1]) > yp > (down[0] * xp + down[1])) and
+                  ((yp - right[1]) / right[0]) > xp > ((yp - left[1]) / left[0]))
+            if self.directed:
+                st = st and (((yp - up_ray[1]) / up_ray[0]) < xp and ((right_ray[0] * xp + right_ray[1]) < yp))
+            if self.r_load is not None:
+                st = (st and not (((load_pos[0] * xp + load_pos[1]) > yp > (load_neg[0] * xp + load_neg[1])) and
+                                 ((yp - r_pos[1]) / r_pos[0]) < xp) and not
+                            (((load_pos[0] * xp + load_pos[1]) < yp < (load_neg[0] * xp + load_neg[1])) and
+                                 ((yp - r_neg[1]) / r_neg[0]) > xp))
+            start.append(st)
+        return start
+
 if __name__ == '__main__':
-    relay = DistanceRelay()
-    print(relay.get_points())
+    relay = DistanceRelay(z_line=10, fi_line=70, r_right=10, fi_right=70, offset=0.2, r_load=5, fi_load=35, backward=True)
+    relay2 = DistanceRelay(z_line=10, fi_line=70, r_right=10, fi_right=70, offset=0.2, r_load=5, fi_load=35, directed=True, backward=True)
+    r, x = relay.get_points()
+    r2, x2 = relay2.get_points()
+    ang = np.arange(0, 360, 10)
+    z = np.arange(1, 20, 1)
+    ang_z_ar = np.array(np.meshgrid(z, ang)).T.reshape(-1, 2)
+    z = ang_z_ar[:,0] * np.exp(1j*np.deg2rad(ang_z_ar[:, 1]))
+    trip = relay2.start(_ComplexSignal(val=z))
+    trip_color = [color.green if t else color.grey for t in trip]
+
+    fig = go.Figure()
+    fig.add_scatter(x=r, y=x, name='Первая ступень ДЗ', mode='lines', fill="toself")
+    fig.add_scatter(x=r2, y=x2, name='Первая ступень ДЗ направл.', mode='lines', fill="toself")
+    fig.add_scatter(x=np.real(z), y=np.imag(z), name='точки', mode='markers', marker=dict(color=trip_color))
+    fig.update_xaxes(range=(-40, 60))
+    fig.update_yaxes(range=(-20, 40))
+    fig.update_yaxes(scaleanchor="x", scaleratio=1, )
+    fig.update_layout(height=800, width=1200, template='plotly_white', margin=dict(b=10, t=10, l=10, r=10))
+    fig.show()
