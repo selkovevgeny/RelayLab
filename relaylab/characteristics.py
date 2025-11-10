@@ -160,7 +160,7 @@ class DistanceRelay(_Relay):
     """Четырехугольная характеристика срабатывания дистанционной защиты с вырезом нагрузки"""
 
     def __init__(self, z_line=10, fi_line=70, r_right=5, fi_right=70, offset=0.1, r_load=None, fi_load=30,
-                 backward:bool=False, directed:bool=False):
+                 backward:bool=False, directed:bool=False, fi_up_ray:float=105, fi_right_ray:float=-15):
         """ Задание характеристики срабатывания
 
         :param z_line: Полное сопротивление срабатывания, type:float
@@ -172,6 +172,8 @@ class DistanceRelay(_Relay):
         :param fi_load: Уставка по активному сопротивлению зоны нагрузки, type:float
         :param backward: Направленность характеристики в обратную сторону, type:bool
         :param directed: Флаг направленности пускового органа, type:bool
+        :param fi_up_ray: Угол наклона луча, направленного вверх, type:float
+        :param fi_right_ray: Угол наклона луча, направленного вправо, type:float
         """
         super().__init__()
         self.z_line = z_line
@@ -183,6 +185,8 @@ class DistanceRelay(_Relay):
         self.fi_load = fi_load
         self.backward = backward
         self.directed = directed
+        self.fi_up_ray = fi_up_ray
+        self.fi_right_ray = fi_right_ray
 
     @staticmethod
     def __solve_eq(eq1, eq2):
@@ -203,8 +207,8 @@ class DistanceRelay(_Relay):
         down = 0,  - self.offset * self.z_line * np.sin(fi_line) #нижняя сторона
         left = np.tan(fi_line), self.r_right * np.tan(fi_line) #левая сторона
         # Уравнения лучей направленной характеристики
-        up_ray = np.tan(np.deg2rad(105)), 0
-        right_ray = np.tan(np.deg2rad(-15)), 0
+        up_ray = np.tan(np.deg2rad(self.fi_up_ray)), 0
+        right_ray = np.tan(np.deg2rad(self.fi_right_ray)), 0
         # Вычисляем точки пересечения
         t1 = self.__solve_eq(up, right)
         t2 = self.__solve_eq(down, right)
@@ -369,8 +373,8 @@ class DistanceRelay(_Relay):
         down = 0,  - self.offset * self.z_line * np.sin(fi_line) #нижняя сторона
         left = np.tan(fi_line), self.r_right * np.tan(fi_line) #левая сторона
         # Уравнения лучей направленной характеристики
-        up_ray = np.tan(np.deg2rad(105)), 0
-        right_ray = np.tan(np.deg2rad(-15)), 0
+        up_ray = np.tan(np.deg2rad(self.fi_right_ray)), 0
+        right_ray = np.tan(np.deg2rad(self.fi_up_ray)), 0
         # Уравнения линий нагрузки
         if self.r_load is not None:
             load_pos = np.tan(fi_load), 0  # нагрузка положительный наклон
